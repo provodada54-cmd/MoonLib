@@ -1,5 +1,3 @@
---[[ MoonLib Keybinds Addon ]]
-
 local UserInputService = game:GetService("UserInputService")
 
 local KeybindsAddon = {}
