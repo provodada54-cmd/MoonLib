@@ -254,7 +254,6 @@ function ConfigAddon._register(MoonLib)
         end)
 
         local wrapper = Window:AddSettingsContainer(102)
-        wrapper.AutomaticSize = Enum.AutomaticSize.Y
         wrapper.Visible = not self._autoSave
 
         self._managerFrame = wrapper
@@ -280,17 +279,15 @@ function ConfigAddon._register(MoonLib)
         local function refreshCurrent() currentLabel.Text = "Current: " .. (self:GetCurrentConfig() or "none") end
         refreshCurrent()
 
-        -- используем MoonLib:_makeDropdown с анимацией и правильным направлением
-        local ddWrapper = Instance.new("Frame", container)
-        ddWrapper.Size = UDim2.new(1, 0, 0, 42)
-        ddWrapper.BackgroundTransparency = 1
-        ddWrapper.ClipsDescendants = false
-        ddWrapper.LayoutOrder = 1
+        -- Отдельный контейнер под dropdown — AutomaticSize.Y растёт вместе с dropdown
+        local ddHolder = Instance.new("Frame", container)
+        ddHolder.Size = UDim2.new(1, 0, 0, 0)
+        ddHolder.AutomaticSize = Enum.AutomaticSize.Y
+        ddHolder.BackgroundTransparency = 1
+        ddHolder.ClipsDescendants = false
+        ddHolder.LayoutOrder = 1
 
-        local ddLayout = Instance.new("UIListLayout", ddWrapper)
-        ddLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-        local dropdown = MoonLib:_makeDropdown(ddWrapper, {
+        local dropdown = MoonLib:_makeDropdown(ddHolder, {
             Name = "Select config",
             Items = self:ListConfigs(),
             Default = "",
@@ -299,9 +296,7 @@ function ConfigAddon._register(MoonLib)
         local selected = nil
         dropdown:OnChanged(function(v) selected = v end)
 
-        local function refreshList()
-            dropdown:SetItems(self:ListConfigs())
-        end
+        local function refreshList() dropdown:SetItems(self:ListConfigs()) end
 
         local function makeRowBtn(text, layoutOrder)
             local b = Instance.new("TextButton", container)
