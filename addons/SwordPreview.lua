@@ -2,14 +2,8 @@ local SwordPreview = {}
 SwordPreview._cache = {}
 SwordPreview._moonlib = nil
 
-local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local InsertService = game:GetService("InsertService")
-
-local function tween(obj, props, dur)
-    local ti = TweenInfo.new(dur or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    TweenService:Create(obj, ti, props):Play()
-end
 
 local function clearViewport(viewport)
     for _, child in ipairs(viewport:GetChildren()) do
@@ -28,8 +22,10 @@ local function setupCamera(viewport, model)
     local maxDim = math.max(size.X, size.Y, size.Z)
     local dist = maxDim * 1.8
 
-    camera.CFrame = cf * CFrame.new(dist * 0.5, dist * 0.3, dist) * CFrame.Angles(0, 0, 0)
-    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, cf.Position)
+    camera.CFrame = CFrame.lookAt(
+        cf.Position + Vector3.new(dist * 0.5, dist * 0.3, dist),
+        cf.Position
+    )
 
     return camera, cf
 end
@@ -58,12 +54,12 @@ function SwordPreview:Build(viewport, modelName, opts)
     end
 
     if not model then
-        local part = Instance.new("Part")
-        part.Size = Vector3.new(1, 4, 0.3)
-        part.Color = Color3.fromRGB(180, 180, 200)
-        part.Material = Enum.Material.Metal
-        part.Anchored = true
-        part.CanCollide = false
+        local blade = Instance.new("Part")
+        blade.Size = Vector3.new(1, 4, 0.3)
+        blade.Color = Color3.fromRGB(180, 180, 200)
+        blade.Material = Enum.Material.Metal
+        blade.Anchored = true
+        blade.CanCollide = false
 
         local handle = Instance.new("Part")
         handle.Size = Vector3.new(0.4, 1.2, 0.4)
@@ -71,12 +67,12 @@ function SwordPreview:Build(viewport, modelName, opts)
         handle.Material = Enum.Material.Wood
         handle.Anchored = true
         handle.CanCollide = false
-        handle.CFrame = part.CFrame * CFrame.new(0, -2.6, 0)
+        handle.CFrame = blade.CFrame * CFrame.new(0, -2.6, 0)
 
         model = Instance.new("Model")
-        part.Parent = model
+        blade.Parent = model
         handle.Parent = model
-        model.PrimaryPart = part
+        model.PrimaryPart = blade
         model.Parent = viewport
     end
 
@@ -98,7 +94,7 @@ end
 function SwordPreview:AttachLazyLoader(scrollingFrame, opts)
     opts = opts or {}
     local items = opts.Items or {}
-    local viewportSize = opts.ViewportSize or UDim2.new(0, 80, 0, 80)
+    local vpSize = opts.ViewportSize or UDim2.new(0, 80, 0, 80)
 
     for _, itemName in ipairs(items) do
         local card = Instance.new("Frame")
@@ -111,7 +107,7 @@ function SwordPreview:AttachLazyLoader(scrollingFrame, opts)
         corner.Parent = card
 
         local vp = Instance.new("ViewportFrame")
-        vp.Size = viewportSize
+        vp.Size = vpSize
         vp.Position = UDim2.new(0.5, -40, 0, 2)
         vp.BackgroundTransparency = 1
         vp.Parent = card
@@ -140,17 +136,15 @@ end
 
 function SwordPreview:OpenPicker(opts)
     if not self._moonlib then return end
-    local T = self._moonlib._theme
     opts = opts or {}
 
     local popup = self._moonlib:CreateSubPopup({
         Title = opts.Title or "Select Sword",
         Width = 400,
-        Height = 420,
+        Height = 420
     })
 
     local items = opts.Items or {}
-    local selected = opts.Default
 
     if opts.IncludeNone then
         popup:AddButton({
@@ -158,7 +152,7 @@ function SwordPreview:OpenPicker(opts)
             Callback = function()
                 if opts.OnSelect then opts.OnSelect(nil) end
                 popup:Close()
-            end,
+            end
         })
     end
 
@@ -168,7 +162,7 @@ function SwordPreview:OpenPicker(opts)
             Callback = function()
                 if opts.OnSelect then opts.OnSelect(itemName) end
                 popup:Close()
-            end,
+            end
         })
     end
 end
