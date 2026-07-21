@@ -10,7 +10,7 @@ local camera = Workspace.CurrentCamera
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local MoonLib = {}
-MoonLib._version = "2.8.0"
+MoonLib._version = "2.9.0"
 MoonLib._addons = {}
 MoonLib._windows = {}
 MoonLib._connections = {}
@@ -27,7 +27,7 @@ MoonLib._theme = {
     textDim = Color3.fromRGB(130, 130, 145),
     textFaded = Color3.fromRGB(90, 90, 105),
     border = Color3.fromRGB(40, 40, 50),
-    borderGlow = Color3.fromRGB(120, 50, 80),
+    borderGlow = Color3.fromRGB(140, 60, 90),
     toggle_on = Color3.fromRGB(230, 40, 75),
     toggle_off = Color3.fromRGB(50, 50, 60),
     slider_bg = Color3.fromRGB(45, 45, 55),
@@ -119,7 +119,7 @@ function MoonLib:Prompt(opts)
     end
     local overlay = create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0, Parent = gui})
     local wrapper = create("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 320, 0, opts.Input and 160 or 130), BackgroundTransparency = 1, Parent = overlay})
-    addGlow(wrapper, theme.accent, 0.55, 20)
+    addGlow(wrapper, theme.accent, 0.4, 30)
     local frame = create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = theme.bg, BorderSizePixel = 0, Parent = wrapper})
     corner(frame, 10); stroke(frame, theme.accent, 1)
     create("TextLabel", {Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, 10), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = theme.accent, TextXAlignment = Enum.TextXAlignment.Left, Text = opts.Title or "Prompt", Parent = frame})
@@ -163,7 +163,7 @@ function MoonLib:CreateSubPopup(opts)
         BackgroundTransparency = 1,
         Parent = overlay,
     })
-    addGlow(wrapper, theme.accent, 0.5, 22)
+    addGlow(wrapper, theme.accent, 0.35, 32)
 
     local frame = create("Frame", {
         Size = UDim2.new(1, 0, 1, 0),
@@ -290,7 +290,7 @@ function MoonLib:CreateSubPopup(opts)
     return API
 end
 
--- DROPDOWN: список выпадает СНИЗУ прямо внутри строки, стрелка меняется ▼/▲
+-- DROPDOWN: раскрывается вниз с анимацией, стрелка ▼ вращается на 180°
 function MoonLib:_makeDropdown(parentBody, opts)
     opts = opts or {}
     local theme = self._theme
@@ -300,8 +300,10 @@ function MoonLib:_makeDropdown(parentBody, opts)
     local ITEM_H = 22
     local ROW_CLOSED_H = 42
 
+    -- row будет расти когда dropdown открыт
     local row = create("Frame", {
         Size = UDim2.new(1, 0, 0, ROW_CLOSED_H),
+        AutomaticSize = Enum.AutomaticSize.None,
         BackgroundTransparency = 1,
         ClipsDescendants = false,
         Parent = parentBody
@@ -314,7 +316,8 @@ function MoonLib:_makeDropdown(parentBody, opts)
         Position = UDim2.new(0, 0, 0, 20),
         BackgroundColor3 = theme.bgTertiary,
         Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = theme.text,
-        Text = tostring(D.Value) .. "  ▼",
+        Text = tostring(D.Value),
+        TextXAlignment = Enum.TextXAlignment.Center,
         AutoButtonColor = false, BorderSizePixel = 0,
         ZIndex = 5,
         Parent = row,
@@ -332,9 +335,6 @@ function MoonLib:_makeDropdown(parentBody, opts)
         ZIndex = 6,
         Parent = dropBtn,
     })
-    -- убираем стрелку из текста кнопки (она теперь отдельный лейбл)
-    dropBtn.Text = tostring(D.Value)
-    dropBtn.TextXAlignment = Enum.TextXAlignment.Center
 
     local dropList = create("Frame", {
         Size = UDim2.new(1, 0, 0, 0),
@@ -349,9 +349,10 @@ function MoonLib:_makeDropdown(parentBody, opts)
     corner(dropList, 4)
     stroke(dropList, theme.accent, 1)
 
-    local listLayout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 1), Parent = dropList})
+    create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 1), Parent = dropList})
 
     D._dropList = dropList
+    D._row = row
 
     local function rebuild()
         for _, c in ipairs(dropList:GetChildren()) do
@@ -392,7 +393,6 @@ function MoonLib:_makeDropdown(parentBody, opts)
 
     function D:Close()
         self._open = false
-        local h = dropList.Size.Y.Offset
         tween(dropList, {Size = UDim2.new(1, 0, 0, 0)}, 0.18)
         tween(row, {Size = UDim2.new(1, 0, 0, ROW_CLOSED_H)}, 0.18)
         tween(arrow, {Rotation = 0}, 0.18)
@@ -430,14 +430,26 @@ function MoonLib:CreateWindow(options)
 
     local Window = {tabs = {}, activeTab = nil, open = true, _settingsOrder = 0}
 
+    -- ГЛАВНЫЙ ScreenGui окна
     local screenGui = create("ScreenGui", {
         Name = "MoonLibUI", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling, Parent = player:WaitForChild("PlayerGui")
     })
     table.insert(self._windows, screenGui)
 
+    -- ОТДЕЛЬНЫЙ ScreenGui для АУРЫ (glow) — располагается ЗА главным окном
+    local glowGui = create("ScreenGui", {
+        Name = "MoonLibGlow", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 99,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling, Parent = player.PlayerGui
+    })
+    table.insert(self._windows, glowGui)
+
     local uiScale = create("UIScale", {Scale = getScale(), Parent = screenGui})
-    self:Connect(camera:GetPropertyChangedSignal("ViewportSize"), function() tween(uiScale, {Scale = getScale()}) end)
+    local uiScaleGlow = create("UIScale", {Scale = getScale(), Parent = glowGui})
+    self:Connect(camera:GetPropertyChangedSignal("ViewportSize"), function()
+        tween(uiScale, {Scale = getScale()})
+        tween(uiScaleGlow, {Scale = getScale()})
+    end)
 
     local miniIcon = create("ImageButton", {
         Name = "MiniIcon",
@@ -454,42 +466,92 @@ function MoonLib:CreateWindow(options)
     stroke(miniIcon, Color3.new(0, 0, 0), 2)
     padding(miniIcon, 4, 4, 4, 4)
 
-    -- ГЛАВНОЕ ОКНО с ЯРКИМ неоновым свечением
-    local mainWrapper = create("Frame", {
-        Name = "MainWrapper",
+    -- ГЛАВНОЕ ОКНО
+    local mainFrame = create("Frame", {
+        Name = "MainFrame",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = size,
+        BackgroundColor3 = self._theme.bg,
+        ClipsDescendants = true,
+        Active = true,
+        Parent = screenGui,
+    })
+    corner(mainFrame, 10)
+    stroke(mainFrame, self._theme.borderGlow, 1)
+
+    -- АУРА в отдельном GUI, follows mainFrame
+    local auraFrame = create("Frame", {
+        Name = "AuraFrame",
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         Size = size,
         BackgroundTransparency = 1,
-        Parent = screenGui,
+        Parent = glowGui,
     })
-    -- сильный внешний glow
-    local mainGlow = addGlow(mainFrame, self._theme.accent, 0.5, 32)
-    mainGlow.ZIndex = -2
-    local mainGlowInner = addGlow(mainFrame, self._theme.accentGlow, 0.7, 16)
-    mainGlowInner.Name = "_GlowInner"
-    mainGlowInner.ZIndex = -1
+    -- Три слоя ауры для эффекта диффузии
+    local auraOuter = create("ImageLabel", {
+        Name = "AuraOuter",
+        BackgroundTransparency = 1,
+        Image = GLOW_IMAGE,
+        ImageColor3 = self._theme.accent,
+        ImageTransparency = 0.4,
+        ScaleType = Enum.ScaleType.Slice,
+        SliceCenter = Rect.new(24, 24, 276, 276),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.new(1, 80, 1, 80),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Parent = auraFrame,
+    })
+    local auraMid = create("ImageLabel", {
+        Name = "AuraMid",
+        BackgroundTransparency = 1,
+        Image = GLOW_IMAGE,
+        ImageColor3 = self._theme.accentGlow,
+        ImageTransparency = 0.5,
+        ScaleType = Enum.ScaleType.Slice,
+        SliceCenter = Rect.new(24, 24, 276, 276),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.new(1, 44, 1, 44),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Parent = auraFrame,
+    })
+    local auraInner = create("ImageLabel", {
+        Name = "AuraInner",
+        BackgroundTransparency = 1,
+        Image = GLOW_IMAGE,
+        ImageColor3 = self._theme.accent,
+        ImageTransparency = 0.35,
+        ScaleType = Enum.ScaleType.Slice,
+        SliceCenter = Rect.new(24, 24, 276, 276),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.new(1, 20, 1, 20),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Parent = auraFrame,
+    })
 
-    -- пульсация неона (мягкое дыхание)
+    -- пульсация ауры
     task.spawn(function()
-    while mainGlow and mainGlow.Parent do
-        tween(mainGlow, {ImageTransparency = 0.4}, 2)
-        task.wait(2)
-        tween(mainGlow, {ImageTransparency = 0.6}, 2)
-        task.wait(2)
-    end
-end)
+        while auraFrame and auraFrame.Parent do
+            tween(auraOuter, {ImageTransparency = 0.5}, 2.5)
+            tween(auraMid, {ImageTransparency = 0.6}, 2.5)
+            task.wait(2.5)
+            tween(auraOuter, {ImageTransparency = 0.35}, 2.5)
+            tween(auraMid, {ImageTransparency = 0.45}, 2.5)
+            task.wait(2.5)
+        end
+    end)
 
-    local mainFrame = create("Frame", {
-        Name = "MainFrame",
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundColor3 = self._theme.bg,
-        ClipsDescendants = true,
-        Active = true,
-        Parent = mainWrapper,
-    })
-    corner(mainFrame, 10)
-    stroke(mainFrame, self._theme.borderGlow, 1)
+    -- аура следует за окном (позиция + размер)
+    self:Connect(mainFrame:GetPropertyChangedSignal("Position"), function()
+        auraFrame.Position = mainFrame.Position
+    end)
+    self:Connect(mainFrame:GetPropertyChangedSignal("Size"), function()
+        auraFrame.Size = mainFrame.Size
+    end)
+    self:Connect(mainFrame:GetPropertyChangedSignal("Visible"), function()
+        auraFrame.Visible = mainFrame.Visible
+    end)
 
     local titleBar = create("Frame", {Name = "TitleBar", Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = self._theme.bgSecondary, BorderSizePixel = 0, Parent = mainFrame})
     corner(titleBar, 10)
@@ -522,7 +584,6 @@ end)
         Parent = settingsPanel
     })
     create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6), Parent = settingsScroll})
-    -- ОГРОМНЫЙ padding снизу чтобы Auto-Load помещался
     padding(settingsScroll, 12, 60, 14, 14)
 
     local settingsOpen = false
@@ -533,7 +594,7 @@ end)
             if t.button then
                 tween(t.button, {BackgroundTransparency = 1, TextColor3 = MoonLib._theme.textDim})
                 local ic = t.button:FindFirstChildOfClass("ImageLabel")
-                if ic and ic.Name ~= "_Glow" and ic.Name ~= "_GlowInner" then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
+                if ic and ic.Name ~= "_Glow" then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
                 local g = t.button:FindFirstChild("_Glow")
                 if g then g.Visible = false end
             end
@@ -563,14 +624,18 @@ end)
         Window.open = state
         isTransitioning = true
         if state then
-            mainWrapper.Visible = true
-            mainWrapper.Size = UDim2.new(0, 0, 0, 0)
-            tween(mainWrapper, {Size = size}, 0.25)
+            mainFrame.Visible = true
+            auraFrame.Visible = true
+            mainFrame.Size = UDim2.new(0, 0, 0, 0)
+            tween(mainFrame, {Size = size}, 0.25)
             task.delay(0.26, function() isTransitioning = false end)
         else
-            tween(mainWrapper, {Size = UDim2.new(0, 0, 0, 0)}, 0.2)
+            tween(mainFrame, {Size = UDim2.new(0, 0, 0, 0)}, 0.2)
             task.delay(0.22, function()
-                if not Window.open then mainWrapper.Visible = false end
+                if not Window.open then
+                    mainFrame.Visible = false
+                    auraFrame.Visible = false
+                end
                 isTransitioning = false
             end)
         end
@@ -580,7 +645,7 @@ end)
         local dragging, dragStart, frameStart = false, nil, nil
         titleBar.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true; dragStart = input.Position; frameStart = mainWrapper.Position
+                dragging = true; dragStart = input.Position; frameStart = mainFrame.Position
             end
         end)
         titleBar.InputEnded:Connect(function(input)
@@ -589,7 +654,7 @@ end)
         self:Connect(UserInputService.InputChanged, function(input)
             if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
                 local d = input.Position - dragStart
-                mainWrapper.Position = UDim2.new(frameStart.X.Scale, frameStart.X.Offset + d.X, frameStart.Y.Scale, frameStart.Y.Offset + d.Y)
+                mainFrame.Position = UDim2.new(frameStart.X.Scale, frameStart.X.Offset + d.X, frameStart.Y.Scale, frameStart.Y.Offset + d.Y)
             end
         end)
     end
@@ -707,7 +772,7 @@ end)
         local w = TextService:GetTextSize(btnText, 12, Enum.Font.GothamBold, Vector2.new(1000, 100)).X + (tabIcon and 24 or 20)
         local tabBtn = create("TextButton", {Size = UDim2.new(0, w, 0, 26), BackgroundColor3 = MoonLib._theme.bgTertiary, BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = MoonLib._theme.textDim, Text = btnText, AutoButtonColor = false, BorderSizePixel = 0, ClipsDescendants = false, Parent = tabScroll})
         corner(tabBtn, 6)
-        local tabGlow = addGlow(tabBtn, MoonLib._theme.accent, 0.6, 8)
+        local tabGlow = addGlow(tabBtn, MoonLib._theme.accent, 0.5, 10)
         tabGlow.Visible = false
         if tabIcon then
             create("ImageLabel", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 8, 0.5, -7), BackgroundTransparency = 1, Image = tabIcon, ImageColor3 = MoonLib._theme.textDim, Parent = tabBtn})
@@ -740,7 +805,7 @@ end)
                 LayoutOrder = #Tab.sections + 1,
                 Parent = parent
             })
-            addGlow(secWrapper, MoonLib._theme.accent, 0.78, 10)
+            addGlow(secWrapper, MoonLib._theme.accent, 0.7, 12)
 
             local secFrame = create("Frame", {
                 Size = UDim2.new(1, 0, 0, 0),
@@ -954,7 +1019,7 @@ end)
                 if t.button then
                     tween(t.button, {BackgroundTransparency = 1, TextColor3 = MoonLib._theme.textDim})
                     local ic = t.button:FindFirstChildOfClass("ImageLabel")
-                    if ic and ic.Name ~= "_Glow" and ic.Name ~= "_GlowInner" then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
+                    if ic and ic.Name ~= "_Glow" then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
                     local g = t.button:FindFirstChild("_Glow")
                     if g then g.Visible = false end
                 end
@@ -962,7 +1027,7 @@ end)
             tabPage.Visible = true
             tween(tabBtn, {BackgroundTransparency = 0, BackgroundColor3 = MoonLib._theme.accentDim, TextColor3 = MoonLib._theme.text})
             local ic = tabBtn:FindFirstChildOfClass("ImageLabel")
-            if ic and ic.Name ~= "_Glow" and ic.Name ~= "_GlowInner" then tween(ic, {ImageColor3 = MoonLib._theme.accent}) end
+            if ic and ic.Name ~= "_Glow" then tween(ic, {ImageColor3 = MoonLib._theme.accent}) end
             if tabGlow then tabGlow.Visible = true end
             Window.activeTab = Tab
             if settingsOpen then
@@ -979,7 +1044,10 @@ end)
         return Tab
     end
 
-    function Window:Destroy() pcall(function() screenGui:Destroy() end) end
+    function Window:Destroy()
+        pcall(function() screenGui:Destroy() end)
+        pcall(function() glowGui:Destroy() end)
+    end
 
     return Window
 end
