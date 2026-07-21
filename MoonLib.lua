@@ -75,8 +75,9 @@ local function addGlow(parent, color, transparency, thickness)
         ImageTransparency = transparency,
         ScaleType = Enum.ScaleType.Slice,
         SliceCenter = Rect.new(24, 24, 276, 276),
+        AnchorPoint = Vector2.new(0.5, 0.5),
         Size = UDim2.new(1, thickness * 2, 1, thickness * 2),
-        Position = UDim2.new(0, -thickness, 0, -thickness),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
         ZIndex = 0,
         Parent = parent,
     })
@@ -297,11 +298,10 @@ function MoonLib:_makeDropdown(parentBody, opts)
     local D = {Value = opts.Default or (items[1] or ""), _callbacks = {}, _open = false, _items = items}
 
     local ITEM_H = 22
-    local GAP = 2
+    local ROW_CLOSED_H = 42
 
-    -- row будет автоматически расти когда dropdown открыт
     local row = create("Frame", {
-        Size = UDim2.new(1, 0, 0, 42),
+        Size = UDim2.new(1, 0, 0, ROW_CLOSED_H),
         BackgroundTransparency = 1,
         ClipsDescendants = false,
         Parent = parentBody
@@ -321,7 +321,21 @@ function MoonLib:_makeDropdown(parentBody, opts)
     })
     corner(dropBtn, 4)
 
-    -- список ВНУТРИ row, снизу от кнопки
+    local arrow = create("TextLabel", {
+        Size = UDim2.new(0, 14, 0, 14),
+        Position = UDim2.new(1, -18, 0.5, -7),
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        TextSize = 10,
+        TextColor3 = theme.accent,
+        Text = "▼",
+        ZIndex = 6,
+        Parent = dropBtn,
+    })
+    -- убираем стрелку из текста кнопки (она теперь отдельный лейбл)
+    dropBtn.Text = tostring(D.Value)
+    dropBtn.TextXAlignment = Enum.TextXAlignment.Center
+
     local dropList = create("Frame", {
         Size = UDim2.new(1, 0, 0, 0),
         Position = UDim2.new(0, 0, 0, 44),
@@ -334,7 +348,8 @@ function MoonLib:_makeDropdown(parentBody, opts)
     })
     corner(dropList, 4)
     stroke(dropList, theme.accent, 1)
-    create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 1), Parent = dropList})
+
+    local listLayout = create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 1), Parent = dropList})
 
     D._dropList = dropList
 
@@ -356,7 +371,7 @@ function MoonLib:_makeDropdown(parentBody, opts)
             ib.MouseLeave:Connect(function() tween(ib, {BackgroundColor3 = theme.bg}, 0.08) end)
             ib.MouseButton1Click:Connect(function()
                 D.Value = it
-                dropBtn.Text = tostring(it) .. "  ▼"
+                dropBtn.Text = tostring(it)
                 D:Close()
                 for _, cb in ipairs(D._callbacks) do pcall(cb, it) end
                 if opts.Callback then pcall(opts.Callback, it) end
@@ -368,35 +383,40 @@ function MoonLib:_makeDropdown(parentBody, opts)
     function D:Open()
         self._open = true
         local h = #self._items * (ITEM_H + 1)
-        dropList.Size = UDim2.new(1, 0, 0, h)
         dropList.Visible = true
-        dropBtn.Text = tostring(self.Value) .. "  ▲"
-        row.Size = UDim2.new(1, 0, 0, 42 + h + 4)
+        dropList.Size = UDim2.new(1, 0, 0, 0)
+        tween(dropList, {Size = UDim2.new(1, 0, 0, h)}, 0.22)
+        tween(row, {Size = UDim2.new(1, 0, 0, ROW_CLOSED_H + h + 4)}, 0.22)
+        tween(arrow, {Rotation = 180}, 0.22)
     end
 
     function D:Close()
         self._open = false
-        dropList.Visible = false
-        dropBtn.Text = tostring(self.Value) .. "  ▼"
-        row.Size = UDim2.new(1, 0, 0, 42)
+        local h = dropList.Size.Y.Offset
+        tween(dropList, {Size = UDim2.new(1, 0, 0, 0)}, 0.18)
+        tween(row, {Size = UDim2.new(1, 0, 0, ROW_CLOSED_H)}, 0.18)
+        tween(arrow, {Rotation = 0}, 0.18)
+        task.delay(0.2, function()
+            if not self._open then dropList.Visible = false end
+        end)
     end
 
     dropBtn.MouseButton1Click:Connect(function()
-        if D._open then
-            D:Close()
-        else
-            D:Open()
-        end
+        if D._open then D:Close() else D:Open() end
     end)
 
     function D:Set(v)
         self.Value = v
-        dropBtn.Text = tostring(v) .. (self._open and "  ▲" or "  ▼")
+        dropBtn.Text = tostring(v)
     end
     function D:SetItems(newItems)
         self._items = newItems or {}
         rebuild()
-        if self._open then self:Open() end
+        if self._open then
+            local h = #self._items * (ITEM_H + 1)
+            tween(dropList, {Size = UDim2.new(1, 0, 0, h)}, 0.15)
+            tween(row, {Size = UDim2.new(1, 0, 0, ROW_CLOSED_H + h + 4)}, 0.15)
+        end
     end
     function D:OnChanged(cb) table.insert(self._callbacks, cb) end
     return D
@@ -444,10 +464,21 @@ function MoonLib:CreateWindow(options)
         Parent = screenGui,
     })
     -- сильный внешний glow
-    addGlow(mainWrapper, self._theme.accent, 0.45, 28)
-    -- второй слой (мягче) для эффекта диффузии
-    local glowInner = addGlow(mainWrapper, self._theme.accentGlow, 0.65, 14)
-    glowInner.Name = "_GlowInner"
+    local mainGlow = addGlow(mainFrame, self._theme.accent, 0.5, 32)
+    mainGlow.ZIndex = -2
+    local mainGlowInner = addGlow(mainFrame, self._theme.accentGlow, 0.7, 16)
+    mainGlowInner.Name = "_GlowInner"
+    mainGlowInner.ZIndex = -1
+
+    -- пульсация неона (мягкое дыхание)
+    task.spawn(function()
+    while mainGlow and mainGlow.Parent do
+        tween(mainGlow, {ImageTransparency = 0.4}, 2)
+        task.wait(2)
+        tween(mainGlow, {ImageTransparency = 0.6}, 2)
+        task.wait(2)
+    end
+end)
 
     local mainFrame = create("Frame", {
         Name = "MainFrame",
