@@ -10,7 +10,7 @@ local camera = Workspace.CurrentCamera
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local MoonLib = {}
-MoonLib._version = "2.2.0"
+MoonLib._version = "2.3.0"
 MoonLib._addons = {}
 MoonLib._windows = {}
 MoonLib._connections = {}
@@ -113,10 +113,7 @@ function MoonLib:Prompt(opts)
     corner(okBtn, 6)
 
     local function close() pcall(function() overlay:Destroy() end) end
-    cancelBtn.MouseButton1Click:Connect(function()
-        close()
-        if opts.OnCancel then pcall(opts.OnCancel) end
-    end)
+    cancelBtn.MouseButton1Click:Connect(function() close(); if opts.OnCancel then pcall(opts.OnCancel) end end)
     okBtn.MouseButton1Click:Connect(function()
         local val = inputBox and inputBox.Text or nil
         close()
@@ -124,11 +121,173 @@ function MoonLib:Prompt(opts)
     end)
 end
 
+function MoonLib:CreateSubPopup(opts)
+    opts = opts or {}
+    local theme = self._theme
+    local gui = player.PlayerGui:FindFirstChild("MoonLibSubPopups")
+    if not gui then
+        gui = create("ScreenGui", {Name = "MoonLibSubPopups", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 300, Parent = player.PlayerGui})
+    end
+
+    local overlay = create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.5, BorderSizePixel = 0, Parent = gui})
+
+    local frame = create("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0, opts.Width or 300, 0, opts.Height or 340),
+        BackgroundColor3 = theme.bg,
+        BorderSizePixel = 0,
+        Parent = overlay,
+    })
+    corner(frame, 10)
+    stroke(frame, theme.accent, 1)
+
+    local titleBar = create("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = theme.bgSecondary, BorderSizePixel = 0, Parent = frame})
+    corner(titleBar, 10)
+    create("Frame", {Size = UDim2.new(1, 0, 0, 14), Position = UDim2.new(0, 0, 1, -14), BackgroundColor3 = theme.bgSecondary, BorderSizePixel = 0, Parent = titleBar})
+
+    create("TextLabel", {Size = UDim2.new(1, -40, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = theme.accent, TextXAlignment = Enum.TextXAlignment.Left, Text = opts.Title or "Settings", Parent = titleBar})
+
+    local closeBtn = create("TextButton", {Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(1, -30, 0.5, -12), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 16, TextColor3 = theme.text, Text = "×", AutoButtonColor = false, Parent = titleBar})
+
+    local body = create("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 1, -40),
+        Position = UDim2.new(0, 0, 0, 38),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = theme.accent,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        Parent = frame,
+    })
+    create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8), Parent = body})
+    padding(body, 6, 10, 12, 12)
+
+    local function close() pcall(function() overlay:Destroy() end) end
+    closeBtn.MouseButton1Click:Connect(close)
+    overlay.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local mp = UserInputService:GetMouseLocation()
+            local ap = frame.AbsolutePosition
+            local as = frame.AbsoluteSize
+            if mp.X < ap.X or mp.X > ap.X + as.X or mp.Y - 36 < ap.Y or mp.Y - 36 > ap.Y + as.Y then
+                close()
+            end
+        end
+    end)
+
+    frame.BackgroundTransparency = 1
+    frame.Size = UDim2.new(0, 0, 0, 0)
+    tween(frame, {Size = UDim2.new(0, opts.Width or 300, 0, opts.Height or 340), BackgroundTransparency = 0}, 0.2)
+
+    local API = {}
+    API.body = body
+    API.frame = frame
+    API.overlay = overlay
+    function API:Close() close() end
+
+    function API:AddToggle(o)
+        o = o or {}
+        local T = {Value = o.Default or false, _callbacks = {}}
+        local row = create("Frame", {Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = theme.bgSecondary, BorderSizePixel = 0, Parent = body})
+        corner(row, 6)
+        create("TextLabel", {Size = UDim2.new(1, -50, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = theme.text, TextXAlignment = Enum.TextXAlignment.Left, Text = o.Name or "Toggle", Parent = row})
+        local tBg = create("Frame", {Size = UDim2.new(0, 30, 0, 14), Position = UDim2.new(1, -40, 0.5, -7), BackgroundColor3 = T.Value and theme.toggle_on or theme.toggle_off, BorderSizePixel = 0, Parent = row})
+        corner(tBg, 7)
+        local k = create("Frame", {Size = UDim2.new(0, 10, 0, 10), Position = T.Value and UDim2.new(1, -12, 0.5, -5) or UDim2.new(0, 2, 0.5, -5), BackgroundColor3 = Color3.new(1,1,1), BorderSizePixel = 0, Parent = tBg})
+        corner(k, 5)
+        local btn = create("TextButton", {Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1, Text = "", AutoButtonColor = false, Parent = row})
+        btn.MouseButton1Click:Connect(function()
+            T.Value = not T.Value
+            tween(tBg, {BackgroundColor3 = T.Value and theme.toggle_on or theme.toggle_off})
+            tween(k, {Position = T.Value and UDim2.new(1,-12,0.5,-5) or UDim2.new(0,2,0.5,-5)})
+            for _, cb in ipairs(T._callbacks) do pcall(cb, T.Value) end
+            if o.Callback then pcall(o.Callback, T.Value) end
+        end)
+        function T:Set(v) self.Value = v; tween(tBg, {BackgroundColor3 = v and theme.toggle_on or theme.toggle_off}); tween(k, {Position = v and UDim2.new(1,-12,0.5,-5) or UDim2.new(0,2,0.5,-5)}); for _, cb in ipairs(self._callbacks) do pcall(cb, v) end end
+        function T:OnChanged(cb) table.insert(self._callbacks, cb) end
+        return T
+    end
+
+    function API:AddSlider(o)
+        o = o or {}
+        local mn, mx = o.Min or 0, o.Max or 100
+        local dec = o.Decimals or 0
+        local S = {Value = o.Default or mn, _callbacks = {}}
+        local row = create("Frame", {Size = UDim2.new(1,0,0,42), BackgroundTransparency = 1, Parent = body})
+        create("TextLabel", {Size = UDim2.new(0.6,0,0,16), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = theme.text, TextXAlignment = Enum.TextXAlignment.Left, Text = o.Name or "Slider", Parent = row})
+        local valLbl = create("TextLabel", {Size = UDim2.new(0.4,0,0,16), Position = UDim2.new(0.6,0,0,0), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = theme.accent, TextXAlignment = Enum.TextXAlignment.Right, Text = dec > 0 and string.format("%."..dec.."f", S.Value) or tostring(math.floor(S.Value)), Parent = row})
+        local track = create("Frame", {Size = UDim2.new(1,0,0,5), Position = UDim2.new(0,0,0,26), BackgroundColor3 = theme.slider_bg, BorderSizePixel = 0, Parent = row})
+        corner(track, 3)
+        local fill = create("Frame", {Size = UDim2.new((S.Value - mn) / math.max(mx - mn, 0.001), 0, 1, 0), BackgroundColor3 = theme.accent, BorderSizePixel = 0, Parent = track})
+        corner(fill, 3)
+        local knob = create("Frame", {Size = UDim2.new(0,12,0,12), AnchorPoint = Vector2.new(0.5,0.5), Position = UDim2.new((S.Value - mn) / math.max(mx - mn, 0.001), 0, 0.5, 0), BackgroundColor3 = Color3.new(1,1,1), BorderSizePixel = 0, ZIndex = 2, Parent = track})
+        corner(knob, 6)
+        local sliding = false
+        local function upd(pos)
+            local rel = math.clamp((pos.X - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
+            local v = mn + (mx - mn) * rel
+            if dec > 0 then v = math.floor(v * (10^dec) + 0.5) / (10^dec) else v = math.floor(v + 0.5) end
+            v = math.clamp(v, mn, mx); S.Value = v
+            fill.Size = UDim2.new((v - mn) / math.max(mx - mn, 0.001), 0, 1, 0)
+            knob.Position = UDim2.new((v - mn) / math.max(mx - mn, 0.001), 0, 0.5, 0)
+            valLbl.Text = dec > 0 and string.format("%."..dec.."f", v) or tostring(math.floor(v))
+            for _, cb in ipairs(S._callbacks) do pcall(cb, v) end
+            if o.Callback then pcall(o.Callback, v) end
+        end
+        track.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then sliding = true; upd(i.Position) end end)
+        knob.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then sliding = true end end)
+        MoonLib:Connect(UserInputService.InputChanged, function(i) if sliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then upd(i.Position) end end)
+        MoonLib:Connect(UserInputService.InputEnded, function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then sliding = false end end)
+        function S:Set(v) v = math.clamp(v, mn, mx); self.Value = v; fill.Size = UDim2.new((v - mn) / math.max(mx - mn, 0.001), 0, 1, 0); knob.Position = UDim2.new((v - mn) / math.max(mx - mn, 0.001), 0, 0.5, 0); valLbl.Text = dec > 0 and string.format("%."..dec.."f", v) or tostring(math.floor(v)) end
+        function S:OnChanged(cb) table.insert(self._callbacks, cb) end
+        return S
+    end
+
+    function API:AddDropdown(o)
+        o = o or {}
+        local items = o.Items or {}
+        local D = {Value = o.Default or (items[1] or ""), _callbacks = {}, _open = false, _items = items}
+        local row = create("Frame", {Size = UDim2.new(1,0,0,42), BackgroundTransparency = 1, Parent = body})
+        create("TextLabel", {Size = UDim2.new(1,0,0,16), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = theme.text, TextXAlignment = Enum.TextXAlignment.Left, Text = o.Name or "Dropdown", Parent = row})
+        local dropBtn = create("TextButton", {Size = UDim2.new(1,0,0,22), Position = UDim2.new(0,0,0,20), BackgroundColor3 = theme.bgTertiary, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = theme.text, Text = tostring(D.Value).."  ▼", AutoButtonColor = false, BorderSizePixel = 0, Parent = row})
+        corner(dropBtn, 4)
+        local dropList = create("Frame", {Size = UDim2.new(1,0,0,0), Position = UDim2.new(0,0,1,2), BackgroundColor3 = theme.bgTertiary, BorderSizePixel = 0, ClipsDescendants = true, Visible = false, ZIndex = 100, Parent = dropBtn})
+        corner(dropList, 4); stroke(dropList, theme.accent, 1)
+        create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0,1), Parent = dropList})
+        for idx, it in ipairs(items) do
+            local ib = create("TextButton", {Size = UDim2.new(1,0,0,20), BackgroundColor3 = theme.bg, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = theme.text, Text = tostring(it), AutoButtonColor = false, BorderSizePixel = 0, LayoutOrder = idx, ZIndex = 101, Parent = dropList})
+            ib.MouseButton1Click:Connect(function()
+                D.Value = it; dropBtn.Text = tostring(it).."  ▼"; dropList.Visible = false; D._open = false
+                for _, cb in ipairs(D._callbacks) do pcall(cb, it) end
+                if o.Callback then pcall(o.Callback, it) end
+            end)
+        end
+        dropBtn.MouseButton1Click:Connect(function()
+            D._open = not D._open; dropList.Visible = D._open
+            dropList.Size = UDim2.new(1,0,0, D._open and (#D._items * 21) or 0)
+        end)
+        function D:Set(v) self.Value = v; dropBtn.Text = tostring(v).."  ▼" end
+        function D:OnChanged(cb) table.insert(self._callbacks, cb) end
+        return D
+    end
+
+    function API:AddLabel(o)
+        o = o or {}
+        local lbl = create("TextLabel", {Size = UDim2.new(1,0,0,16), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = theme.textDim, TextXAlignment = Enum.TextXAlignment.Left, Text = o.Text or "", Parent = body})
+        function lbl:SetText(t) lbl.Text = t end
+        return lbl
+    end
+
+    return API
+end
+
 function MoonLib:CreateWindow(options)
     options = options or {}
     local title = options.Title or "MOON"
     local icon = options.Icon or "rbxassetid://80973987032851"
-    local size = options.Size or (isMobile and UDim2.new(0, 380, 0, 440) or UDim2.new(0, 560, 0, 480))
+    local size = options.Size or (isMobile and UDim2.new(0, 380, 0, 500) or UDim2.new(0, 480, 0, 560))
 
     local Window = {tabs = {}, activeTab = nil, open = true, _settingsOrder = 0}
 
@@ -144,7 +303,7 @@ function MoonLib:CreateWindow(options)
     local miniIcon = create("ImageButton", {
         Name = "MiniIcon",
         Size = UDim2.new(0, MINI_SIZE, 0, MINI_SIZE),
-        Position = UDim2.new(0, 24, 1, -MINI_SIZE - 24),
+        Position = UDim2.new(0, 16, 0, 100),
         BackgroundColor3 = self._theme.bg,
         Image = icon,
         ScaleType = Enum.ScaleType.Fit,
@@ -254,10 +413,8 @@ function MoonLib:CreateWindow(options)
 
         miniIcon.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                mDragging = true
-                mMoved = false
-                mDragStart = input.Position
-                mFrameStart = miniIcon.Position
+                mDragging = true; mMoved = false
+                mDragStart = input.Position; mFrameStart = miniIcon.Position
                 mActiveInputType = input.UserInputType
             end
         end)
@@ -277,9 +434,7 @@ function MoonLib:CreateWindow(options)
             if not mDragging then return end
             if input.UserInputType ~= mActiveInputType and input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
             local wasMoved = mMoved
-            mDragging = false
-            mMoved = false
-            mActiveInputType = nil
+            mDragging = false; mMoved = false; mActiveInputType = nil
             if not wasMoved then setOpen(not Window.open) end
         end)
     end
@@ -340,11 +495,12 @@ function MoonLib:CreateWindow(options)
             BackgroundColor3 = MoonLib._theme.bgSecondary,
             BorderSizePixel = 0,
             LayoutOrder = order,
+            ClipsDescendants = true,
             Parent = settingsScroll
         })
         corner(frame, 6)
-        create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4), Parent = frame})
-        padding(frame, 8, 8, 10, 10)
+        create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6), Parent = frame})
+        padding(frame, 10, 10, 12, 12)
         return frame
     end
 
@@ -386,7 +542,7 @@ function MoonLib:CreateWindow(options)
             local side = sOpts.Side or "Left"
             local parent = side == "Right" and rightCol or leftCol
 
-            local Section = {}
+            local Section = {_settingsCallback = nil}
 
             local secFrame = create("Frame", {
                 Size = UDim2.new(1, 0, 0, 0),
@@ -451,10 +607,11 @@ function MoonLib:CreateWindow(options)
                 Section.HeaderToggle = headerToggle
             end
 
+            local gearButton
             if sOpts.OnSettings then
                 local gearOffset = headerToggle and 74 or 34
-                local gear = create("ImageButton", {Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(1, -gearOffset, 0.5, -8), BackgroundTransparency = 1, Image = "rbxassetid://7734053495", ImageColor3 = MoonLib._theme.textFaded, AutoButtonColor = false, Parent = headerRow})
-                gear.MouseButton1Click:Connect(function() pcall(sOpts.OnSettings) end)
+                gearButton = create("ImageButton", {Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(1, -gearOffset, 0.5, -8), BackgroundTransparency = 1, Image = "rbxassetid://7734053495", ImageColor3 = MoonLib._theme.textFaded, AutoButtonColor = false, Parent = headerRow})
+                gearButton.MouseButton1Click:Connect(function() pcall(sOpts.OnSettings, Section) end)
             end
 
             local body = create("Frame", {
@@ -548,11 +705,11 @@ function MoonLib:CreateWindow(options)
                 opts = opts or {}
                 local items = opts.Items or {}
                 local D = {Value = opts.Default or (items[1] or ""), _callbacks = {}, _open = false, _items = items}
-                local row = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, LayoutOrder = next_(), Parent = body})
+                local row = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, LayoutOrder = next_(), ClipsDescendants = false, ZIndex = 10, Parent = body})
                 create("TextLabel", {Size = UDim2.new(1, 0, 0, 16), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = MoonLib._theme.text, TextXAlignment = Enum.TextXAlignment.Left, Text = opts.Name or "Dropdown", Parent = row})
-                local dropBtn = create("TextButton", {Size = UDim2.new(1, 0, 0, 22), Position = UDim2.new(0, 0, 0, 20), BackgroundColor3 = MoonLib._theme.bgTertiary, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = MoonLib._theme.text, Text = tostring(D.Value) .. "  ▼", AutoButtonColor = false, BorderSizePixel = 0, Parent = row})
+                local dropBtn = create("TextButton", {Size = UDim2.new(1, 0, 0, 22), Position = UDim2.new(0, 0, 0, 20), BackgroundColor3 = MoonLib._theme.bgTertiary, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = MoonLib._theme.text, Text = tostring(D.Value) .. "  ▼", AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 10, Parent = row})
                 corner(dropBtn, 4)
-                local dropList = create("Frame", {Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(0, 0, 1, 2), BackgroundColor3 = MoonLib._theme.bgTertiary, BorderSizePixel = 0, ClipsDescendants = true, Visible = false, ZIndex = 50, Parent = dropBtn})
+                local dropList = create("Frame", {Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(0, 0, 1, 2), BackgroundColor3 = MoonLib._theme.bgTertiary, BorderSizePixel = 0, ClipsDescendants = true, Visible = false, ZIndex = 200, Parent = dropBtn})
                 corner(dropList, 4); stroke(dropList, MoonLib._theme.accent, 1)
                 create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 1), Parent = dropList})
 
@@ -561,7 +718,7 @@ function MoonLib:CreateWindow(options)
                         if c:IsA("TextButton") then c:Destroy() end
                     end
                     for idx, it in ipairs(D._items) do
-                        local ib = create("TextButton", {Size = UDim2.new(1, 0, 0, 20), BackgroundColor3 = MoonLib._theme.bg, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = MoonLib._theme.text, Text = tostring(it), AutoButtonColor = false, BorderSizePixel = 0, LayoutOrder = idx, ZIndex = 51, Parent = dropList})
+                        local ib = create("TextButton", {Size = UDim2.new(1, 0, 0, 20), BackgroundColor3 = MoonLib._theme.bg, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = MoonLib._theme.text, Text = tostring(it), AutoButtonColor = false, BorderSizePixel = 0, LayoutOrder = idx, ZIndex = 201, Parent = dropList})
                         ib.MouseButton1Click:Connect(function()
                             D.Value = it; dropBtn.Text = tostring(it) .. "  ▼"; dropList.Visible = false; D._open = false
                             for _, cb in ipairs(D._callbacks) do pcall(cb, it) end
@@ -627,7 +784,12 @@ function MoonLib:CreateWindow(options)
             local ic = tabBtn:FindFirstChildOfClass("ImageLabel")
             if ic then tween(ic, {ImageColor3 = MoonLib._theme.accent}) end
             Window.activeTab = Tab
-            if settingsOpen then toggleSettings() end
+            if settingsOpen then
+                settingsOpen = false
+                tween(contentFrame, {Position = UDim2.new(0, 8, 0, 84)})
+                tween(settingsPanel, {Position = UDim2.new(1, 8, 0, 84)})
+                tween(settingsGear, {ImageColor3 = MoonLib._theme.textDim, BackgroundColor3 = MoonLib._theme.bgTertiary})
+            end
         end
         tabBtn.MouseButton1Click:Connect(activate)
         table.insert(Window.tabs, Tab)
