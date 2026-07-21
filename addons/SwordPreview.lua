@@ -1,20 +1,13 @@
---[[ MoonLib SwordPreview Addon
-    Отвечает за 3D превью моделек в ViewportFrame
-    и за большие popup-окна выбора мечей
-]]
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local TextService = game:GetService("TextService")
 
 local SwordPreviewAddon = {}
 SwordPreviewAddon._name = "SwordPreview"
 
 function SwordPreviewAddon._register(MoonLib)
     local SP = {}
-    SP._cache = {} -- {modelName = {model, size}}
+    SP._cache = {}
 
-    -- строит превью в переданный ViewportFrame
     function SP:Build(viewport, modelName, opts)
         opts = opts or {}
         for _, c in pairs(viewport:GetChildren()) do
@@ -54,7 +47,6 @@ function SwordPreviewAddon._register(MoonLib)
         return true
     end
 
-    -- lazy loader: помечает ViewportFrame'ы в списке и подгружает видимые
     function SP:AttachLazyLoader(scrollingFrame, opts)
         opts = opts or {}
         local function scan()
@@ -80,11 +72,10 @@ function SwordPreviewAddon._register(MoonLib)
         return scan
     end
 
-    -- открывает popup со списком мечей с превью
     function SP:OpenPicker(pickerOpts)
         pickerOpts = pickerOpts or {}
         local items = pickerOpts.Items or {}
-        local title = pickerOpts.Title or "Select Sword"
+        local title = pickerOpts.Title or "Select"
         local displayFn = pickerOpts.DisplayFunction or function(n) return tostring(n) end
         local onSelect = pickerOpts.OnSelect
         local sourceFolder = pickerOpts.SourceFolder
@@ -107,7 +98,6 @@ function SwordPreviewAddon._register(MoonLib)
         overlay.BackgroundColor3 = Color3.new(0, 0, 0)
         overlay.BackgroundTransparency = 0.5
         overlay.BorderSizePixel = 0
-        overlay.ZIndex = 1
 
         local frame = Instance.new("Frame", overlay)
         frame.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -115,7 +105,6 @@ function SwordPreviewAddon._register(MoonLib)
         frame.Size = UDim2.new(0, 640, 0, 480)
         frame.BackgroundColor3 = theme.bg
         frame.BorderSizePixel = 0
-        frame.ZIndex = 2
         Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
         local st = Instance.new("UIStroke", frame); st.Color = theme.accent; st.Thickness = 1
 
@@ -123,7 +112,6 @@ function SwordPreviewAddon._register(MoonLib)
         titleBar.Size = UDim2.new(1, 0, 0, 36)
         titleBar.BackgroundColor3 = theme.bgSecondary
         titleBar.BorderSizePixel = 0
-        titleBar.ZIndex = 3
         Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
 
         local titleLbl = Instance.new("TextLabel", titleBar)
@@ -134,7 +122,6 @@ function SwordPreviewAddon._register(MoonLib)
         titleLbl.TextColor3 = theme.accent
         titleLbl.TextXAlignment = Enum.TextXAlignment.Left
         titleLbl.Text = title
-        titleLbl.ZIndex = 4
 
         local closeBtn = Instance.new("TextButton", titleBar)
         closeBtn.Size = UDim2.new(0, 26, 0, 26)
@@ -144,9 +131,7 @@ function SwordPreviewAddon._register(MoonLib)
         closeBtn.TextColor3 = theme.text
         closeBtn.Text = "×"
         closeBtn.AutoButtonColor = false
-        closeBtn.ZIndex = 4
 
-        -- search
         local searchBox = Instance.new("TextBox", frame)
         searchBox.Size = UDim2.new(1, -20, 0, 26)
         searchBox.Position = UDim2.new(0, 10, 0, 44)
@@ -158,7 +143,6 @@ function SwordPreviewAddon._register(MoonLib)
         searchBox.Text = ""
         searchBox.TextXAlignment = Enum.TextXAlignment.Left
         searchBox.ClearTextOnFocus = false
-        searchBox.ZIndex = 3
         Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 4)
         local sp1 = Instance.new("UIPadding", searchBox); sp1.PaddingLeft = UDim.new(0, 8)
 
@@ -170,7 +154,6 @@ function SwordPreviewAddon._register(MoonLib)
         list.ScrollBarThickness = 4
         list.ScrollBarImageColor3 = theme.accent
         list.CanvasSize = UDim2.new(0, 0, 0, 0)
-        list.ZIndex = 3
 
         local grid = Instance.new("UIGridLayout", list)
         grid.CellSize = UDim2.new(0, 140, 0, 170)
@@ -178,9 +161,7 @@ function SwordPreviewAddon._register(MoonLib)
         grid.SortOrder = Enum.SortOrder.LayoutOrder
         grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-        local function close()
-            pcall(function() overlay:Destroy() end)
-        end
+        local function close() pcall(function() overlay:Destroy() end) end
         closeBtn.MouseButton1Click:Connect(close)
 
         local function populate(filter)
@@ -198,7 +179,6 @@ function SwordPreviewAddon._register(MoonLib)
                     card.BackgroundColor3 = theme.bgSection
                     card.BorderSizePixel = 0
                     card.LayoutOrder = idx
-                    card.ZIndex = 3
                     Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
                     local cs = Instance.new("UIStroke", card); cs.Color = theme.border; cs.Thickness = 1
                     if item ~= "__none__" then
@@ -207,7 +187,6 @@ function SwordPreviewAddon._register(MoonLib)
                         vp.Position = UDim2.new(0, 4, 0, 4)
                         vp.BackgroundColor3 = theme.bg
                         vp.BorderSizePixel = 0
-                        vp.ZIndex = 3
                         vp:SetAttribute("ModelName", item)
                         vp:SetAttribute("Loaded", false)
                         Instance.new("UICorner", vp).CornerRadius = UDim.new(0, 4)
@@ -220,13 +199,11 @@ function SwordPreviewAddon._register(MoonLib)
                     lbl.TextColor3 = theme.text
                     lbl.TextWrapped = true
                     lbl.Text = name
-                    lbl.ZIndex = 4
                     local btn = Instance.new("TextButton", card)
                     btn.Size = UDim2.new(1, 0, 1, 0)
                     btn.BackgroundTransparency = 1
                     btn.Text = ""
                     btn.AutoButtonColor = false
-                    btn.ZIndex = 5
                     local cap = item
                     btn.MouseButton1Click:Connect(function()
                         if onSelect then pcall(onSelect, cap == "__none__" and nil or cap) end
@@ -244,7 +221,6 @@ function SwordPreviewAddon._register(MoonLib)
 
         SP:AttachLazyLoader(list, {SourceFolder = sourceFolder})
 
-        -- drag
         local dragging, dragStart, frameStart = false, nil, nil
         titleBar.InputBegan:Connect(function(i)
             if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
@@ -264,7 +240,6 @@ function SwordPreviewAddon._register(MoonLib)
         return overlay
     end
 
-    -- предпросмотр внутри секции (маленький viewport)
     function SP:AttachSectionPreview(section, opts)
         opts = opts or {}
         local body = section:GetBody()
