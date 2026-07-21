@@ -1,14 +1,13 @@
-local MoonLib = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/provodada54-cmd/moonlib/main/loader.lua"))()
+local MoonLib = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/provodada54-cmd/MoonLib/main/loader.lua?v=" .. tick()))()
 
 local Config = MoonLib:GetAddon("Config")
 local Keybinds = MoonLib:GetAddon("Keybinds")
-local SwordPreview = MoonLib:GetAddon("SwordPreview")
 
 Config:SetFolder("MoonLib")
 Config:SetDefaults({
     toggles = {aimbot = false, esp = false},
     settings = {
-        fov = 16, walkSpeed = 25, flySpeed = 150,
+        fov = 90, walkSpeed = 25, flySpeed = 150,
         showFov = true, fovColor = "Red", smoothness = 1.0,
     },
     binds = {},
@@ -23,18 +22,18 @@ if Keybinds.SetupSettingsUI then Keybinds:SetupSettingsUI(Window) end
 local HomeTab = Window:AddTab({Name = "Home"})
 
 local aimbotSection = HomeTab:AddSection({
-    Name = "Aimbot", Side = "Left",
-    Toggle = {Default = false},
-    OnSettings = function()
+    Name = "Aimbot",
+    Side = "Left",
+    Toggle = {Default = false, Callback = function(v) end},
+    OnSettings = function(section)
         local popup = MoonLib:CreateSubPopup({Title = "Aimbot Settings", Width = 320, Height = 320})
         local showFov = popup:AddToggle({Name = "Show FOV", Default = Config:Get("settings.showFov", true)})
         Config:Bind("settings.showFov", showFov)
-        local fovSize = popup:AddSlider({Name = "FOV Size", Min = 10, Max = 500, Default = Config:Get("settings.fov", 16), Decimals = 0})
+        local fovSize = popup:AddSlider({Name = "FOV Size", Min = 10, Max = 500, Default = Config:Get("settings.fov", 90), Decimals = 0})
         Config:Bind("settings.fov", fovSize)
         local smoothness = popup:AddSlider({Name = "Smoothness", Min = 0.1, Max = 5, Default = Config:Get("settings.smoothness", 1.0), Decimals = 1})
         Config:Bind("settings.smoothness", smoothness)
-        local color = popup:AddDropdown({Name = "FOV Color", Items = {"Red", "Green", "Blue", "Yellow", "White"}, Default = Config:Get("settings.fovColor", "Red")})
-        Config:Bind("settings.fovColor", color)
+        popup:AddDropdown({Name = "FOV Color", Items = {"Red", "Green", "Blue", "Yellow", "White"}, Default = Config:Get("settings.fovColor", "Red"), Callback = function(v) Config:Set("settings.fovColor", v) end})
     end,
 })
 local fovSlider = aimbotSection:AddSlider({Name = "FOV", Min = 0, Max = 360, Decimals = 0})
