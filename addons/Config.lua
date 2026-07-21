@@ -8,37 +8,34 @@ Config._autoSave = true
 Config._autoLoadName = nil
 Config._metaFile = "_meta.json"
 Config._defaultFile = "_default.json"
+Config._moonlib = nil
 
 local HttpService = game:GetService("HttpService")
 
 local function deepCopy(t)
     if type(t) ~= "table" then return t end
-    local copy = {}
-    for k, v in pairs(t) do
-        copy[k] = deepCopy(v)
-    end
-    return copy
+    local c = {}
+    for k, v in pairs(t) do c[k] = deepCopy(v) end
+    return c
 end
 
 local function deepMerge(base, over)
-    local result = deepCopy(base)
+    local r = deepCopy(base)
     for k, v in pairs(over) do
-        if type(v) == "table" and type(result[k]) == "table" then
-            result[k] = deepMerge(result[k], v)
+        if type(v) == "table" and type(r[k]) == "table" then
+            r[k] = deepMerge(r[k], v)
         else
-            result[k] = deepCopy(v)
+            r[k] = deepCopy(v)
         end
     end
-    return result
+    return r
 end
 
 local function ensureFolder(name)
-    if isfolder and not isfolder(name) then
-        makefolder(name)
-    end
+    if isfolder and not isfolder(name) then makefolder(name) end
 end
 
-local function filePath(folder, name)
+local function fp(folder, name)
     return folder .. "/" .. name
 end
 
@@ -61,17 +58,17 @@ local function writeJson(path, data)
 end
 
 function Config:_metaPath()
-    return filePath(self._folder, self._metaFile)
+    return fp(self._folder, self._metaFile)
 end
 
 function Config:_defaultPath()
-    return filePath(self._folder, self._defaultFile)
+    return fp(self._folder, self._defaultFile)
 end
 
 function Config:_loadMeta()
     local meta = readJson(self:_metaPath())
     if meta then
-        self._autoSave = meta.autoSave ~= false
+        if meta.autoSave ~= nil then self._autoSave = meta.autoSave end
         self._autoLoadName = meta.autoLoad
     end
 end
@@ -105,8 +102,7 @@ function Config:Load()
     end
 
     if loadName then
-        local path = filePath(self._folder, loadName)
-        local saved = readJson(path)
+        local saved = readJson(fp(self._folder, loadName))
         if saved then
             self._data = deepMerge(self._defaults, saved)
         end
@@ -122,41 +118,32 @@ end
 
 function Config:Get(path, default)
     local parts = string.split(path, ".")
-    local current = self._data
+    local cur = self._data
     for _, key in ipairs(parts) do
-        if type(current) ~= "table" then return default end
-        current = current[key]
-        if current == nil then return default end
+        if type(cur) ~= "table" then return default end
+        cur = cur[key]
+        if cur == nil then return default end
     end
-    return current
+    return cur
 end
 
 function Config:Set(path, value)
     local parts = string.split(path, ".")
-    local current = self._data
+    local cur = self._data
     for i = 1, #parts - 1 do
-        if type(current[parts[i]]) ~= "table" then
-            current[parts[i]] = {}
-        end
-        current = current[parts[i]]
+        if type(cur[parts[i]]) ~= "table" then cur[parts[i]] = {} end
+        cur = cur[parts[i]]
     end
-    current[parts[#parts]] = value
-
-    if self._autoSave then
-        self:Save()
-    end
+    cur[parts[#parts]] = value
+    if self._autoSave then self:Save() end
 end
 
 function Config:Bind(path, element)
-    table.insert(self._binds, {path = path, element = element})
-
-    local savedVal = self:Get(path)
-    if savedVal ~= nil then
-        element:Set(savedVal)
-    end
-
-    element:OnChanged(function(v)
-        self:Set(path, v)
+    table.insert(self._binds, { path = path, element = element })
+    local v = self:Get(path)
+    if v ~= nil then element:Set(v) end
+    element:OnChanged(function(newVal)
+        self:Set(path, newVal)
     end)
 end
 
@@ -167,13 +154,9 @@ end
 function Config:ApplyAll()
     for _, bind in ipairs(self._binds) do
         local v = self:Get(bind.path)
-        if v ~= nil then
-            bind.element:Set(v)
-        end
+        if v ~= nil then bind.element:Set(v) end
     end
-    for _, cb in ipairs(self._autoLoadCallbacks) do
-        cb(self._data)
-    end
+    for _, cb in ipairs(self._autoLoadCallbacks) do cb(self._data) end
 end
 
 function Config:ListConfigs()
@@ -191,12 +174,11 @@ end
 
 function Config:CreateConfig(name)
     ensureFolder(self._folder)
-    writeJson(filePath(self._folder, name .. ".json"), self._data)
+    writeJson(fp(self._folder, name .. ".json"), self._data)
 end
 
 function Config:LoadConfig(name)
-    local path = filePath(self._folder, name .. ".json")
-    local saved = readJson(path)
+    local saved = readJson(fp(self._folder, name .. ".json"))
     if saved then
         self._data = deepMerge(self._defaults, saved)
         self:ApplyAll()
@@ -205,14 +187,12 @@ end
 
 function Config:SaveConfig(name)
     ensureFolder(self._folder)
-    writeJson(filePath(self._folder, name .. ".json"), self._data)
+    writeJson(fp(self._folder, name .. ".json"), self._data)
 end
 
 function Config:DeleteConfig(name)
-    local path = filePath(self._folder, name .. ".json")
-    if isfile and isfile(path) and delfile then
-        delfile(path)
-    end
+    local path = fp(self._folder, name .. ".json")
+    if isfile and isfile(path) and delfile then delfile(path) end
 end
 
 function Config:SetAutoLoad(name)
@@ -226,137 +206,130 @@ function Config:ClearAutoLoad()
 end
 
 function Config:SetupSettingsUI(Window)
-    Window:AddSettingsSection("Config", 100)
+    local configTab = Window:AddTab({ Name = "Config" })
 
-    local autoSaveToggle = Window:AddSettingsToggle("Auto-Save", self._autoSave, 101, function(v)
-        self._autoSave = v
-        self:_saveMeta()
-        if v then
-            self:Save()
+    local mainSection = configTab:AddSection({ Name = "Config Settings", Side = "Left" })
+
+    local autoSaveToggle = mainSection:AddToggle({
+        Name = "Auto-Save",
+        Default = self._autoSave,
+        Callback = function(v)
+            self._autoSave = v
+            self:_saveMeta()
+            if v then self:Save() end
         end
-    end)
+    })
 
-    local configContainer = Window:AddSettingsContainer(102)
+    mainSection:AddButton({
+        Name = "Force Save",
+        Callback = function()
+            local wasSave = self._autoSave
+            self._autoSave = true
+            self:Save()
+            self._autoSave = wasSave
+            if self._moonlib then
+                self._moonlib:Notify("Config saved!", 2)
+            end
+        end
+    })
 
-    if not self._autoSave then
-        self:_buildConfigManager(configContainer, Window)
-    end
-
-    local MoonLib = self._moonlib
-    if MoonLib then
-        local oldAutoSaveCb = nil
-    end
-end
-
-function Config:_buildConfigManager(container, Window)
-    local TweenService = game:GetService("TweenService")
-
-    for _, child in ipairs(container:GetChildren()) do
-        child:Destroy()
-    end
-
-    local layout = Instance.new("UIListLayout")
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Padding = UDim.new(0, 4)
-    layout.Parent = container
+    local managerSection = configTab:AddSection({ Name = "Config Manager", Side = "Right" })
 
     local configs = self:ListConfigs()
+    if #configs == 0 then configs = { "(none)" } end
 
-    local dropdownItems = configs
-    if #dropdownItems == 0 then
-        dropdownItems = {"(none)"}
-    end
+    local selectedConfig = configs[1]
 
-    local selectedConfig = dropdownItems[1]
-
-    local dropLabel = Instance.new("TextLabel")
-    dropLabel.Text = "Config: " .. selectedConfig
-    dropLabel.Font = Enum.Font.Gotham
-    dropLabel.TextSize = 13
-    dropLabel.TextColor3 = Color3.fromRGB(235, 235, 240)
-    dropLabel.BackgroundTransparency = 1
-    dropLabel.Size = UDim2.new(1, 0, 0, 22)
-    dropLabel.TextXAlignment = Enum.TextXAlignment.Left
-    dropLabel.ZIndex = 21
-    dropLabel.Parent = container
-
-    local function makeBtn(text, order, cb)
-        local btn = Instance.new("TextButton")
-        btn.Text = text
-        btn.Font = Enum.Font.GothamMedium
-        btn.TextSize = 12
-        btn.TextColor3 = Color3.fromRGB(235, 235, 240)
-        btn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-        btn.Size = UDim2.new(1, 0, 0, 26)
-        btn.LayoutOrder = order
-        btn.ZIndex = 21
-        btn.Parent = container
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 6)
-        corner.Parent = btn
-        btn.MouseButton1Click:Connect(cb)
-        return btn
-    end
-
-    makeBtn("Load", 2, function()
-        if selectedConfig ~= "(none)" then
-            self:LoadConfig(selectedConfig)
+    local configDropdown = managerSection:AddDropdown({
+        Name = "Select Config",
+        Items = configs,
+        Default = selectedConfig,
+        Callback = function(v)
+            selectedConfig = v
         end
-    end)
+    })
 
-    makeBtn("Save", 3, function()
-        if selectedConfig ~= "(none)" then
-            self:SaveConfig(selectedConfig)
+    managerSection:AddButton({
+        Name = "Load Config",
+        Callback = function()
+            if selectedConfig and selectedConfig ~= "(none)" then
+                self:LoadConfig(selectedConfig)
+                if self._moonlib then
+                    self._moonlib:Notify("Loaded: " .. selectedConfig, 2)
+                end
+            end
         end
-    end)
+    })
 
-    makeBtn("New Config", 4, function()
-        if self._moonlib then
-            self._moonlib:Prompt({
-                Title = "New Config",
-                Message = "Enter config name:",
-                Input = true,
-                Placeholder = "my_config",
-                OnConfirm = function(name)
-                    if name and name ~= "" then
-                        self:CreateConfig(name)
-                        self:_buildConfigManager(container, Window)
+    managerSection:AddButton({
+        Name = "Save Config",
+        Callback = function()
+            if selectedConfig and selectedConfig ~= "(none)" then
+                self:SaveConfig(selectedConfig)
+                if self._moonlib then
+                    self._moonlib:Notify("Saved: " .. selectedConfig, 2)
+                end
+            end
+        end
+    })
+
+    managerSection:AddButton({
+        Name = "New Config",
+        Callback = function()
+            if self._moonlib then
+                self._moonlib:Prompt({
+                    Title = "New Config",
+                    Message = "Enter config name:",
+                    Input = true,
+                    Placeholder = "my_config",
+                    OnConfirm = function(name)
+                        if name and name ~= "" then
+                            self:CreateConfig(name)
+                            self._moonlib:Notify("Created: " .. name, 2)
+                        end
                     end
-                end,
-            })
+                })
+            end
         end
-    end)
+    })
 
-    makeBtn("Delete", 5, function()
-        if selectedConfig ~= "(none)" then
-            self:DeleteConfig(selectedConfig)
-            self:_buildConfigManager(container, Window)
+    managerSection:AddButton({
+        Name = "Delete Config",
+        Callback = function()
+            if selectedConfig and selectedConfig ~= "(none)" then
+                self:DeleteConfig(selectedConfig)
+                if self._moonlib then
+                    self._moonlib:Notify("Deleted: " .. selectedConfig, 2)
+                end
+            end
         end
-    end)
+    })
 
-    makeBtn("Set Auto-Load", 6, function()
-        if selectedConfig ~= "(none)" then
-            self:SetAutoLoad(selectedConfig)
-            self:_buildConfigManager(container, Window)
+    managerSection:AddButton({
+        Name = "Set Auto-Load",
+        Callback = function()
+            if selectedConfig and selectedConfig ~= "(none)" then
+                self:SetAutoLoad(selectedConfig)
+                if self._moonlib then
+                    self._moonlib:Notify("Auto-Load set: " .. selectedConfig, 2)
+                end
+            end
         end
-    end)
+    })
 
-    makeBtn("Clear Auto-Load", 7, function()
-        self:ClearAutoLoad()
-        self:_buildConfigManager(container, Window)
-    end)
+    managerSection:AddButton({
+        Name = "Clear Auto-Load",
+        Callback = function()
+            self:ClearAutoLoad()
+            if self._moonlib then
+                self._moonlib:Notify("Auto-Load cleared", 2)
+            end
+        end
+    })
 
-    local autoLoadLabel = Instance.new("TextLabel")
-    autoLoadLabel.Text = "Auto-Load: " .. (self._autoLoadName or "None")
-    autoLoadLabel.Font = Enum.Font.Gotham
-    autoLoadLabel.TextSize = 12
-    autoLoadLabel.TextColor3 = Color3.fromRGB(130, 130, 145)
-    autoLoadLabel.BackgroundTransparency = 1
-    autoLoadLabel.Size = UDim2.new(1, 0, 0, 20)
-    autoLoadLabel.TextXAlignment = Enum.TextXAlignment.Left
-    autoLoadLabel.LayoutOrder = 8
-    autoLoadLabel.ZIndex = 21
-    autoLoadLabel.Parent = container
+    managerSection:AddLabel({
+        Text = "Auto-Load: " .. (self._autoLoadName or "None")
+    })
 end
 
 function Config._register(MoonLib)
