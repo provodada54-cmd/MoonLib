@@ -23,14 +23,10 @@ function ConfigAddon._register(MoonLib)
 
     local function ensureFolder()
         if not isfolder then return end
-        if not isfolder(Config._folder) then
-            pcall(function() makefolder(Config._folder) end)
-        end
+        if not isfolder(Config._folder) then pcall(function() makefolder(Config._folder) end) end
     end
 
-    local function filePath(name)
-        return Config._folder .. "/" .. name
-    end
+    local function filePath(name) return Config._folder .. "/" .. name end
 
     function Config:SetFolder(name) self._folder = name; ensureFolder() end
     function Config:SetDefaults(d) self._defaults = d; self._data = self:_deepClone(d) end
@@ -90,22 +86,16 @@ function ConfigAddon._register(MoonLib)
     end
 
     function Config:GetAutoSave() return self._autoSave end
-
     function Config:SetAutoSave(state)
         self._autoSave = state
-        local m = self:_readMeta()
-        m.autoSave = state
-        self:_writeMeta(m)
+        local m = self:_readMeta(); m.autoSave = state; self:_writeMeta(m)
         if state then self:Save() end
     end
 
     function Config:GetAutoLoad() return self._autoLoadConfig end
-
     function Config:SetAutoLoad(n)
         self._autoLoadConfig = n
-        local m = self:_readMeta()
-        m.autoLoad = n
-        self:_writeMeta(m)
+        local m = self:_readMeta(); m.autoLoad = n; self:_writeMeta(m)
     end
 
     function Config:GetCurrentConfig() return self._currentConfig end
@@ -129,8 +119,7 @@ function ConfigAddon._register(MoonLib)
         name = name:gsub("[^%w_%-]", "_")
         local fn = name .. ".json"
         if isfile and isfile(filePath(fn)) then return false, "Already exists" end
-        local d = self:_deepClone(self._data)
-        d._version = self._version
+        local d = self:_deepClone(self._data); d._version = self._version
         self:_writeFile(fn, d)
         self._currentConfig = name
         self:_fireListChanged()
@@ -148,8 +137,7 @@ function ConfigAddon._register(MoonLib)
 
     function Config:SaveConfig(name)
         if not name or name == "" then return false end
-        local d = self:_deepClone(self._data)
-        d._version = self._version
+        local d = self:_deepClone(self._data); d._version = self._version
         self:_writeFile(name .. ".json", d)
         self._currentConfig = name
         return true
@@ -198,8 +186,7 @@ function ConfigAddon._register(MoonLib)
         if self._suppressSave then return end
         if not self._autoSave then return end
         ensureFolder()
-        local d = self:_deepClone(self._data)
-        d._version = self._version
+        local d = self:_deepClone(self._data); d._version = self._version
         self:_writeFile(self._defaultFile, d)
     end
 
@@ -266,47 +253,42 @@ function ConfigAddon._register(MoonLib)
             self:_animateManager()
         end)
 
-        local managerFrame = Window:AddSettingsContainer(102)
-        managerFrame.Visible = not self._autoSave
-        managerFrame.Size = UDim2.new(1, 0, 0, self._autoSave and 0 or 0)
-        self._managerFrame = managerFrame
+        local wrapper = Window:AddSettingsContainer(102)
+        wrapper.AutomaticSize = Enum.AutomaticSize.None
+        wrapper.Size = UDim2.new(1, 0, 0, 0)
+        wrapper.ClipsDescendants = true
 
-        self:_buildManagerUI(managerFrame)
+        local inner = Instance.new("Frame", wrapper)
+        inner.Size = UDim2.new(1, 0, 0, 0)
+        inner.AutomaticSize = Enum.AutomaticSize.Y
+        inner.BackgroundTransparency = 1
+        inner.BorderSizePixel = 0
+
+        local innerLayout = Instance.new("UIListLayout", inner)
+        innerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        innerLayout.Padding = UDim.new(0, 6)
+
+        self._managerFrame = wrapper
+        self._managerInner = inner
+        self._managerLayout = innerLayout
+
+        self:_buildManagerUI(inner)
+
+        task.wait()
+        local targetH = innerLayout.AbsoluteContentSize.Y + 4
+        if self._autoSave then
+            wrapper.Size = UDim2.new(1, 0, 0, 0)
+        else
+            wrapper.Size = UDim2.new(1, 0, 0, targetH)
+        end
 
         function self:_animateManager()
-            if not self._managerFrame then return end
+            if not self._managerFrame or not self._managerLayout then return end
+            local h = self._managerLayout.AbsoluteContentSize.Y + 4
             if not self._autoSave then
-                self._managerFrame.Visible = true
-                self._managerFrame.BackgroundTransparency = 1
-                for _, c in ipairs(self._managerFrame:GetChildren()) do
-                    if c:IsA("GuiObject") then c.BackgroundTransparency = 1 end
-                    if c:IsA("TextLabel") or c:IsA("TextButton") or c:IsA("TextBox") then
-                        c.TextTransparency = 1
-                    end
-                end
-                task.wait()
-                TweenService:Create(self._managerFrame, TweenInfo.new(0.25), {BackgroundTransparency = 0}):Play()
-                for _, c in ipairs(self._managerFrame:GetChildren()) do
-                    if c:IsA("GuiObject") and c.BackgroundColor3 ~= Color3.new(0,0,0) then
-                        pcall(function() TweenService:Create(c, TweenInfo.new(0.25), {BackgroundTransparency = 0}):Play() end)
-                    end
-                    if c:IsA("TextLabel") or c:IsA("TextButton") or c:IsA("TextBox") then
-                        pcall(function() TweenService:Create(c, TweenInfo.new(0.25), {TextTransparency = 0}):Play() end)
-                    end
-                end
+                TweenService:Create(self._managerFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, h)}):Play()
             else
-                TweenService:Create(self._managerFrame, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
-                for _, c in ipairs(self._managerFrame:GetChildren()) do
-                    if c:IsA("GuiObject") then
-                        pcall(function() TweenService:Create(c, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play() end)
-                    end
-                    if c:IsA("TextLabel") or c:IsA("TextButton") or c:IsA("TextBox") then
-                        pcall(function() TweenService:Create(c, TweenInfo.new(0.2), {TextTransparency = 1}):Play() end)
-                    end
-                end
-                task.delay(0.22, function()
-                    if self._autoSave and self._managerFrame then self._managerFrame.Visible = false end
-                end)
+                TweenService:Create(self._managerFrame, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 0)}):Play()
             end
         end
     end
@@ -326,7 +308,7 @@ function ConfigAddon._register(MoonLib)
         refreshCurrent()
 
         local dropBtn = Instance.new("TextButton", container)
-        dropBtn.Size = UDim2.new(1, 0, 0, 24)
+        dropBtn.Size = UDim2.new(1, 0, 0, 26)
         dropBtn.BackgroundColor3 = theme.bgTertiary
         dropBtn.Font = Enum.Font.Gotham
         dropBtn.TextSize = 11
@@ -337,14 +319,22 @@ function ConfigAddon._register(MoonLib)
         dropBtn.LayoutOrder = 1
         Instance.new("UICorner", dropBtn).CornerRadius = UDim.new(0, 4)
 
-        local dropList = Instance.new("Frame", dropBtn)
-        dropList.Size = UDim2.new(1, 0, 0, 0)
-        dropList.Position = UDim2.new(0, 0, 1, 2)
+        local dropOverlay = game.Players.LocalPlayer.PlayerGui:FindFirstChild("MoonLibDropdowns")
+        if not dropOverlay then
+            dropOverlay = Instance.new("ScreenGui")
+            dropOverlay.Name = "MoonLibDropdowns"
+            dropOverlay.ResetOnSpawn = false
+            dropOverlay.IgnoreGuiInset = true
+            dropOverlay.DisplayOrder = 400
+            dropOverlay.Parent = game.Players.LocalPlayer.PlayerGui
+        end
+
+        local dropList = Instance.new("Frame", dropOverlay)
+        dropList.Size = UDim2.new(0, 100, 0, 0)
         dropList.BackgroundColor3 = theme.bgTertiary
         dropList.BorderSizePixel = 0
         dropList.ClipsDescendants = true
         dropList.Visible = false
-        dropList.ZIndex = 50
         Instance.new("UICorner", dropList).CornerRadius = UDim.new(0, 4)
         local ds = Instance.new("UIStroke", dropList); ds.Color = theme.accent; ds.Thickness = 1
         Instance.new("UIListLayout", dropList).SortOrder = Enum.SortOrder.LayoutOrder
@@ -366,7 +356,6 @@ function ConfigAddon._register(MoonLib)
                 empty.TextSize = 10
                 empty.TextColor3 = theme.textDim
                 empty.Text = "No configs"
-                empty.ZIndex = 51
                 return 1
             end
             for idx, name in ipairs(list) do
@@ -380,7 +369,6 @@ function ConfigAddon._register(MoonLib)
                 ib.AutoButtonColor = false
                 ib.BorderSizePixel = 0
                 ib.LayoutOrder = idx
-                ib.ZIndex = 51
                 ib.MouseButton1Click:Connect(function()
                     selected = name
                     dropBtn.Text = name .. "  ▼"
@@ -391,12 +379,26 @@ function ConfigAddon._register(MoonLib)
             return #list
         end
 
+        local function positionList()
+            local abs = dropBtn.AbsolutePosition
+            local sz = dropBtn.AbsoluteSize
+            dropList.Position = UDim2.new(0, abs.X, 0, abs.Y + sz.Y + 2)
+        end
+
         dropBtn.MouseButton1Click:Connect(function()
             isOpen = not isOpen
-            local count = rebuildList()
-            dropList.Size = UDim2.new(1, 0, 0, isOpen and (count * 21) or 0)
-            dropList.Visible = isOpen
+            if isOpen then
+                local count = rebuildList()
+                local sz = dropBtn.AbsoluteSize
+                positionList()
+                dropList.Size = UDim2.new(0, sz.X, 0, count * 21)
+                dropList.Visible = true
+            else
+                dropList.Visible = false
+            end
         end)
+
+        dropBtn.AncestryChanged:Connect(function(_, p) if not p then pcall(function() dropList:Destroy() end) end end)
 
         local function makeRowBtn(text, layoutOrder)
             local b = Instance.new("TextButton", container)
@@ -410,8 +412,8 @@ function ConfigAddon._register(MoonLib)
             b.BorderSizePixel = 0
             b.LayoutOrder = layoutOrder
             Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-            b.MouseEnter:Connect(function() TweenService:Create(b, TweenInfo.new(0.15), {BackgroundColor3 = theme.bgSection}):Play() end)
-            b.MouseLeave:Connect(function() TweenService:Create(b, TweenInfo.new(0.15), {BackgroundColor3 = theme.bgTertiary}):Play() end)
+            b.MouseEnter:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = theme.bgSection}):Play() end)
+            b.MouseLeave:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = theme.bgTertiary}):Play() end)
             return b
         end
 
@@ -435,15 +437,13 @@ function ConfigAddon._register(MoonLib)
 
         loadBtn.MouseButton1Click:Connect(function()
             if not selected then MoonLib:Notify("Select a config first"); return end
-            if self:LoadConfig(selected) then
-                MoonLib:Notify("Loaded: " .. selected); refreshCurrent()
+            if self:LoadConfig(selected) then MoonLib:Notify("Loaded: " .. selected); refreshCurrent()
             else MoonLib:Notify("Failed to load") end
         end)
 
         saveBtn.MouseButton1Click:Connect(function()
             if not selected then MoonLib:Notify("Select a config first"); return end
-            self:SaveConfig(selected)
-            MoonLib:Notify("Saved: " .. selected); refreshCurrent()
+            self:SaveConfig(selected); MoonLib:Notify("Saved: " .. selected); refreshCurrent()
         end)
 
         newBtn.MouseButton1Click:Connect(function()
@@ -455,6 +455,10 @@ function ConfigAddon._register(MoonLib)
                     if ok then
                         MoonLib:Notify("Created: " .. res)
                         selected = res; dropBtn.Text = res .. "  ▼"; refreshCurrent()
+                        if self._managerFrame and self._managerLayout then
+                            task.wait()
+                            TweenService:Create(self._managerFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, self._managerLayout.AbsoluteContentSize.Y + 4)}):Play()
+                        end
                     else MoonLib:Notify(res or "Failed") end
                 end,
             })
@@ -475,15 +479,11 @@ function ConfigAddon._register(MoonLib)
 
         setAlBtn.MouseButton1Click:Connect(function()
             if not selected then MoonLib:Notify("Select a config first"); return end
-            self:SetAutoLoad(selected)
-            refreshAl()
-            MoonLib:Notify("Auto-Load: " .. selected)
+            self:SetAutoLoad(selected); refreshAl(); MoonLib:Notify("Auto-Load: " .. selected)
         end)
 
         clearAlBtn.MouseButton1Click:Connect(function()
-            self:SetAutoLoad(nil)
-            refreshAl()
-            MoonLib:Notify("Auto-Load cleared")
+            self:SetAutoLoad(nil); refreshAl(); MoonLib:Notify("Auto-Load cleared")
         end)
 
         self:OnListChanged(function() refreshCurrent(); refreshAl() end)
