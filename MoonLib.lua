@@ -1,4 +1,4 @@
---[[ MoonLib v2 — Arcane style ]]
+--[[ MoonLib v2.1 — Arcane style ]]
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -12,7 +12,7 @@ local camera = Workspace.CurrentCamera
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local MoonLib = {}
-MoonLib._version = "2.0.0"
+MoonLib._version = "2.1.0"
 MoonLib._addons = {}
 MoonLib._windows = {}
 MoonLib._connections = {}
@@ -36,7 +36,7 @@ MoonLib._theme = {
 }
 
 local TWEEN = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local MINI_SIZE = isMobile and 32 or 38
+local MINI_SIZE = isMobile and 44 or 52
 local BASE_SCREEN = 1080
 
 local function tween(obj, props, dur)
@@ -97,7 +97,7 @@ function MoonLib:CreateWindow(options)
     local icon = options.Icon or "rbxassetid://80973987032851"
     local size = options.Size or (isMobile and UDim2.new(0, 380, 0, 440) or UDim2.new(0, 560, 0, 480))
 
-    local Window = {tabs = {}, activeTab = nil, open = true, _settingsSections = {}, _settingsOrder = 0}
+    local Window = {tabs = {}, activeTab = nil, open = true, _settingsOrder = 0}
 
     local screenGui = create("ScreenGui", {
         Name = "MoonLibUI", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 100,
@@ -108,7 +108,7 @@ function MoonLib:CreateWindow(options)
     local uiScale = create("UIScale", {Scale = getScale(), Parent = screenGui})
     self:Connect(camera:GetPropertyChangedSignal("ViewportSize"), function() tween(uiScale, {Scale = getScale()}) end)
 
-    -- МИНИ-ИКОНКА (всегда видна)
+    -- МИНИ-ИКОНКА (квадрат с закруглёнными краями, всегда видна)
     local miniIcon = create("ImageButton", {
         Name = "MiniIcon",
         Size = UDim2.new(0, MINI_SIZE, 0, MINI_SIZE),
@@ -117,10 +117,14 @@ function MoonLib:CreateWindow(options)
         Image = icon,
         ScaleType = Enum.ScaleType.Fit,
         AutoButtonColor = false,
+        Active = true,
         Parent = screenGui,
     })
-    corner(miniIcon, MINI_SIZE / 2)
+    corner(miniIcon, 12)
     stroke(miniIcon, self._theme.accent, 2)
+
+    -- лёгкий inner padding через UIPadding чтобы иконка не касалась краёв
+    padding(miniIcon, 4, 4, 4, 4)
 
     -- ГЛАВНОЕ ОКНО
     local mainFrame = create("Frame", {
@@ -130,6 +134,7 @@ function MoonLib:CreateWindow(options)
         Size = size,
         BackgroundColor3 = self._theme.bg,
         ClipsDescendants = true,
+        Active = true,
         Parent = screenGui,
     })
     corner(mainFrame, 10)
@@ -146,10 +151,9 @@ function MoonLib:CreateWindow(options)
 
     -- TABS
     local tabBar = create("Frame", {Name = "TabBar", Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 0, 48), BackgroundTransparency = 1, Parent = mainFrame})
-    local tabScroll = create("ScrollingFrame", {Size = UDim2.new(1, -40, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, Parent = tabBar})
+    local tabScroll = create("ScrollingFrame", {Size = UDim2.new(1, -40, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, Parent = tabBar})
     create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), VerticalAlignment = Enum.VerticalAlignment.Center, Parent = tabScroll})
 
-    -- settings gear (справа от табов)
     local settingsGear = create("ImageButton", {Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(1, -30, 0.5, -12), BackgroundColor3 = self._theme.bgTertiary, BackgroundTransparency = 0.3, Image = "rbxassetid://7734053495", ImageColor3 = self._theme.textDim, AutoButtonColor = false, Parent = tabBar})
     corner(settingsGear, 6)
 
@@ -178,59 +182,93 @@ function MoonLib:CreateWindow(options)
     end
     settingsGear.MouseButton1Click:Connect(toggleSettings)
 
-    -- открытие/закрытие
+    -- ==== ОТКРЫТИЕ/ЗАКРЫТИЕ + DRAG для миниIcon ====
+    local isTransitioning = false
+
     local function setOpen(state)
+        if isTransitioning then return end
         Window.open = state
+        isTransitioning = true
         if state then
             mainFrame.Visible = true
             mainFrame.Size = UDim2.new(0, 0, 0, 0)
             mainFrame.BackgroundTransparency = 1
             tween(mainFrame, {Size = size, BackgroundTransparency = 0}, 0.25)
+            task.delay(0.26, function() isTransitioning = false end)
         else
             tween(mainFrame, {Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1}, 0.2)
-            task.delay(0.22, function() if not Window.open then mainFrame.Visible = false end end)
+            task.delay(0.22, function()
+                if not Window.open then mainFrame.Visible = false end
+                isTransitioning = false
+            end)
         end
     end
 
-    miniIcon.MouseButton1Click:Connect(function() setOpen(not Window.open) end)
-
     -- drag окна
-    local dragging, dragStart, frameStart = false, nil, nil
-    titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true; dragStart = input.Position; frameStart = mainFrame.Position
-        end
-    end)
-    titleBar.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
-    end)
-    self:Connect(UserInputService.InputChanged, function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local d = input.Position - dragStart
-            mainFrame.Position = UDim2.new(frameStart.X.Scale, frameStart.X.Offset + d.X, frameStart.Y.Scale, frameStart.Y.Offset + d.Y)
-        end
-    end)
+    do
+        local dragging, dragStart, frameStart = false, nil, nil
+        titleBar.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true; dragStart = input.Position; frameStart = mainFrame.Position
+            end
+        end)
+        titleBar.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+        end)
+        self:Connect(UserInputService.InputChanged, function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local d = input.Position - dragStart
+                mainFrame.Position = UDim2.new(frameStart.X.Scale, frameStart.X.Offset + d.X, frameStart.Y.Scale, frameStart.Y.Offset + d.Y)
+            end
+        end)
+    end
 
-    -- drag мини-иконки
-    local mDragging, mDragStart, mFrameStart, mMoved = false, nil, nil, false
-    miniIcon.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            mDragging = true; mDragStart = input.Position; mFrameStart = miniIcon.Position; mMoved = false
-        end
-    end)
-    miniIcon.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+    -- drag + клик для мини-иконки (ИСПРАВЛЕНО)
+    do
+        local mDragging = false
+        local mDragStart = nil
+        local mFrameStart = nil
+        local mMoved = false
+        local mActiveInputType = nil
+        local mCurrentPos = nil
+
+        miniIcon.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                mDragging = true
+                mMoved = false
+                mDragStart = input.Position
+                mFrameStart = miniIcon.Position
+                mActiveInputType = input.UserInputType
+                mCurrentPos = input.Position
+            end
+        end)
+
+        self:Connect(UserInputService.InputChanged, function(input)
+            if not mDragging then return end
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                local d = input.Position - mDragStart
+                if math.abs(d.X) > 6 or math.abs(d.Y) > 6 then mMoved = true end
+                if mMoved then
+                    miniIcon.Position = UDim2.new(mFrameStart.X.Scale, mFrameStart.X.Offset + d.X, mFrameStart.Y.Scale, mFrameStart.Y.Offset + d.Y)
+                end
+                mCurrentPos = input.Position
+            end
+        end)
+
+        self:Connect(UserInputService.InputEnded, function(input)
+            if not mDragging then return end
+            if input.UserInputType ~= mActiveInputType and input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+
+            local wasMoved = mMoved
             mDragging = false
-            if not mMoved then setOpen(not Window.open) end
-        end
-    end)
-    self:Connect(UserInputService.InputChanged, function(input)
-        if mDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local d = input.Position - mDragStart
-            if math.abs(d.X) > 4 or math.abs(d.Y) > 4 then mMoved = true end
-            miniIcon.Position = UDim2.new(mFrameStart.X.Scale, mFrameStart.X.Offset + d.X, mFrameStart.Y.Scale, mFrameStart.Y.Offset + d.Y)
-        end
-    end)
+            mMoved = false
+            mActiveInputType = nil
+
+            if not wasMoved then
+                setOpen(not Window.open)
+            end
+        end)
+    end
 
     --[[ SETTINGS API ]]
     function Window:AddSettingsSection(text, order)
@@ -293,7 +331,6 @@ function MoonLib:CreateWindow(options)
 
         local Tab = {name = tabName, sections = {}}
 
-        -- tab button
         local btnText = tabIcon and ("  " .. tabName) or tabName
         local w = TextService:GetTextSize(btnText, 12, Enum.Font.GothamBold, Vector2.new(1000, 100)).X + (tabIcon and 24 or 20)
         local tabBtn = create("TextButton", {Size = UDim2.new(0, w, 0, 26), BackgroundColor3 = MoonLib._theme.bgTertiary, BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = MoonLib._theme.textDim, Text = btnText, AutoButtonColor = false, BorderSizePixel = 0, Parent = tabScroll})
@@ -304,7 +341,6 @@ function MoonLib:CreateWindow(options)
 
         local tabPage = create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Visible = false, Parent = contentFrame})
 
-        -- две колонки
         local leftCol = create("ScrollingFrame", {Size = UDim2.new(0.5, -4, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 2, ScrollBarImageColor3 = MoonLib._theme.accent, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, Parent = tabPage})
         create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8), Parent = leftCol})
         padding(leftCol, 2, 6, 2, 4)
@@ -315,7 +351,6 @@ function MoonLib:CreateWindow(options)
 
         Tab.leftCol = leftCol; Tab.rightCol = rightCol; Tab.page = tabPage; Tab.button = tabBtn
 
-        --[[ SECTION ]]
         function Tab:AddSection(sOpts)
             sOpts = sOpts or {}
             local sName = sOpts.Name or "Section"
@@ -324,16 +359,46 @@ function MoonLib:CreateWindow(options)
 
             local Section = {}
 
-            local secFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = MoonLib._theme.bgSection, BorderSizePixel = 0, LayoutOrder = #Tab.sections + 1, Parent = parent})
+            -- секция как контейнер с UIListLayout (header + body идут вертикально, не накладываются)
+            local secFrame = create("Frame", {
+                Size = UDim2.new(1, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundColor3 = MoonLib._theme.bgSection,
+                BorderSizePixel = 0,
+                LayoutOrder = #Tab.sections + 1,
+                ClipsDescendants = false,
+                Parent = parent
+            })
             corner(secFrame, 8)
             stroke(secFrame, MoonLib._theme.border, 1)
 
-            -- HEADER секции (с шестерёнкой и тумблером справа)
-            local headerRow = create("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1, LayoutOrder = 0, Parent = secFrame})
+            create("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                Padding = UDim.new(0, 0),
+                FillDirection = Enum.FillDirection.Vertical,
+                Parent = secFrame
+            })
 
-            local headerLabel = create("TextLabel", {Size = UDim2.new(0, 200, 1, 0), Position = UDim2.new(0, 12, 0, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = MoonLib._theme.text, TextXAlignment = Enum.TextXAlignment.Left, Text = sName, Parent = headerRow})
+            -- HEADER (фиксированная высота, LayoutOrder = 1)
+            local headerRow = create("Frame", {
+                Size = UDim2.new(1, 0, 0, 34),
+                BackgroundTransparency = 1,
+                LayoutOrder = 1,
+                Parent = secFrame
+            })
 
-            -- header тумблер (опционально)
+            create("TextLabel", {
+                Size = UDim2.new(1, -80, 1, 0),
+                Position = UDim2.new(0, 12, 0, 0),
+                BackgroundTransparency = 1,
+                Font = Enum.Font.GothamBold,
+                TextSize = 13,
+                TextColor3 = MoonLib._theme.text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Text = sName,
+                Parent = headerRow
+            })
+
             local headerToggle
             if sOpts.Toggle then
                 headerToggle = {Value = sOpts.Toggle.Default or false, _callbacks = {}}
@@ -359,22 +424,30 @@ function MoonLib:CreateWindow(options)
                 Section.HeaderToggle = headerToggle
             end
 
-            -- header шестерёнка (опционально)
             if sOpts.OnSettings then
                 local gearOffset = headerToggle and 74 or 34
                 local gear = create("ImageButton", {Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(1, -gearOffset, 0.5, -8), BackgroundTransparency = 1, Image = "rbxassetid://7734053495", ImageColor3 = MoonLib._theme.textFaded, AutoButtonColor = false, Parent = headerRow})
                 gear.MouseButton1Click:Connect(function() pcall(sOpts.OnSettings) end)
             end
 
-            -- контейнер контента
-            local body = create("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 1, Parent = secFrame})
-            padding(body, 0, 10, 12, 12)
-            create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8), Parent = body})
+            -- BODY (AutomaticSize + UIListLayout, LayoutOrder = 2 → всегда под header)
+            local body = create("Frame", {
+                Size = UDim2.new(1, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                LayoutOrder = 2,
+                Parent = secFrame
+            })
+            padding(body, 4, 10, 12, 12)
+            create("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                Padding = UDim.new(0, 8),
+                Parent = body
+            })
 
             local elemOrder = 0
             local function next_() elemOrder = elemOrder + 1; return elemOrder end
 
-            -- TOGGLE
             function Section:AddToggle(opts)
                 opts = opts or {}
                 local T = {Value = opts.Default or false, _callbacks = {}}
@@ -397,7 +470,6 @@ function MoonLib:CreateWindow(options)
                 return T
             end
 
-            -- SLIDER
             function Section:AddSlider(opts)
                 opts = opts or {}
                 local mn, mx = opts.Min or 0, opts.Max or 100
@@ -434,7 +506,6 @@ function MoonLib:CreateWindow(options)
                 return S
             end
 
-            -- BUTTON
             function Section:AddButton(opts)
                 opts = opts or {}
                 local btn = create("TextButton", {Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = MoonLib._theme.bgTertiary, Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = MoonLib._theme.text, Text = opts.Name or "Button", AutoButtonColor = false, BorderSizePixel = 0, LayoutOrder = next_(), Parent = body})
@@ -447,7 +518,6 @@ function MoonLib:CreateWindow(options)
                 return btn
             end
 
-            -- DROPDOWN
             function Section:AddDropdown(opts)
                 opts = opts or {}
                 local items = opts.Items or {}
@@ -477,7 +547,6 @@ function MoonLib:CreateWindow(options)
                 return D
             end
 
-            -- INPUT
             function Section:AddInput(opts)
                 opts = opts or {}
                 local I = {Value = opts.Default or "", _callbacks = {}}
@@ -495,7 +564,6 @@ function MoonLib:CreateWindow(options)
                 return I
             end
 
-            -- LABEL
             function Section:AddLabel(opts)
                 opts = opts or {}
                 local lbl = create("TextLabel", {Size = UDim2.new(1, 0, 0, 16), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = MoonLib._theme.textDim, TextXAlignment = Enum.TextXAlignment.Left, Text = opts.Text or "", LayoutOrder = next_(), Parent = body})
@@ -503,7 +571,6 @@ function MoonLib:CreateWindow(options)
                 return lbl
             end
 
-            -- получить frame секции (для аддонов типа SwordPreview)
             function Section:GetBody() return body end
             function Section:GetFrame() return secFrame end
 
@@ -511,7 +578,6 @@ function MoonLib:CreateWindow(options)
             return Section
         end
 
-        -- активация таба
         local function activate()
             for _, t in ipairs(Window.tabs) do
                 if t.page then t.page.Visible = false end
