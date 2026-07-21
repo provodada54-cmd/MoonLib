@@ -7,44 +7,74 @@ SwordPreviewAddon._name = "SwordPreview"
 function SwordPreviewAddon._register(MoonLib)
     local SP = {}
     SP._cache = {}
+    SP._activeViewports = {}
+
+    function SP:_prepareModel(modelName, opts)
+        opts = opts or {}
+        local cached = self._cache[modelName]
+        if cached then return cached end
+        local sf = opts.SourceFolder
+        if not sf then
+            local assets = ReplicatedStorage:FindFirstChild("Assets")
+            if not assets then return nil end
+            sf = assets:FindFirstChild("Swords")
+        end
+        if not sf then return nil end
+        local model = sf:FindFirstChild(modelName)
+        if not model then return nil end
+        local prepared = model:Clone()
+        for _, d in pairs(prepared:GetDescendants()) do
+            if d:IsA("BasePart") then d.Anchored = true; d.CanCollide = false end
+            if d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam") or d:IsA("Fire") or d:IsA("Smoke") then d.Enabled = false end
+        end
+        local primary = prepared:FindFirstChild("Sword") or prepared:FindFirstChildWhichIsA("BasePart", true)
+        if primary and primary:IsA("BasePart") then prepared.PrimaryPart = primary end
+        if prepared.PrimaryPart then
+            prepared:PivotTo(CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(180), 0) * CFrame.Angles(math.rad(-25), 0, math.rad(45)))
+        end
+        local _, size = prepared:GetBoundingBox()
+        self._cache[modelName] = {model = prepared, size = size}
+        return self._cache[modelName]
+    end
 
     function SP:Build(viewport, modelName, opts)
         opts = opts or {}
         for _, c in pairs(viewport:GetChildren()) do
             if c:IsA("Model") or c:IsA("BasePart") or c:IsA("Camera") or c:IsA("WorldModel") then c:Destroy() end
         end
-        local cached = self._cache[modelName]
-        if not cached then
-            local swordsFolder = opts.SourceFolder
-            if not swordsFolder then
-                local assets = ReplicatedStorage:FindFirstChild("Assets")
-                if not assets then return false end
-                swordsFolder = assets:FindFirstChild("Swords")
-            end
-            if not swordsFolder then return false end
-            local swordModel = swordsFolder:FindFirstChild(modelName)
-            if not swordModel then return false end
-            local prepared = swordModel:Clone()
-            for _, d in pairs(prepared:GetDescendants()) do
-                if d:IsA("BasePart") then d.Anchored = true; d.CanCollide = false end
-                if d:IsA("ParticleEmitter") or d:IsA("Trail") or d:IsA("Beam") or d:IsA("Fire") or d:IsA("Smoke") then d.Enabled = false end
-            end
-            local primary = prepared:FindFirstChild("Sword") or prepared:FindFirstChildWhichIsA("BasePart", true)
-            if primary and primary:IsA("BasePart") then prepared.PrimaryPart = primary end
-            if prepared.PrimaryPart then
-                prepared:PivotTo(CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(180), 0) * CFrame.Angles(math.rad(-25), 0, math.rad(45)))
-            end
-            local _, size = prepared:GetBoundingBox()
-            self._cache[modelName] = {model = prepared, size = size}
-            cached = self._cache[modelName]
-        end
+        local cached = self:_prepareModel(modelName, opts)
+        if not cached then return false end
         local clone = cached.model:Clone()
         clone.Parent = viewport
         local cam = Instance.new("Camera", viewport)
         viewport.CurrentCamera = cam
         local dist = math.max(cached.size.X, cached.size.Y, cached.size.Z) * 1.6
         cam.CFrame = CFrame.new(Vector3.new(0, 0, dist), Vector3.new(0, 0, 0))
+
+        self._activeViewports[viewport] = modelName
+        if not viewport:GetAttribute("_MoonSPTracked") then
+            viewport:SetAttribute("_MoonSPTracked", true)
+            viewport.AncestryChanged:Connect(function(_, parent)
+                if not parent then
+                    self._activeViewports[viewport] = nil
+                    self:_cleanupUnused()
+                end
+            end)
+        end
         return true
+    end
+
+    function SP:_cleanupUnused()
+        local usedModels = {}
+        for vp, name in pairs(self._activeViewports) do
+            if vp and vp.Parent then usedModels[name] = true end
+        end
+        for name in pairs(self._cache) do
+            if not usedModels[name] then
+                pcall(function() self._cache[name].model:Destroy() end)
+                self._cache[name] = nil
+            end
+        end
     end
 
     function SP:AttachLazyLoader(scrollingFrame, opts)
@@ -82,15 +112,13 @@ function SwordPreviewAddon._register(MoonLib)
         local includeNone = pickerOpts.IncludeNone
         local theme = MoonLib._theme
 
-        local player = game:GetService("Players").LocalPlayer
-        local gui = player.PlayerGui:FindFirstChild("MoonLibPickers")
+        local plr = game:GetService("Players").LocalPlayer
+        local gui = plr.PlayerGui:FindFirstChild("MoonLibPickers")
         if not gui then
             gui = Instance.new("ScreenGui")
-            gui.Name = "MoonLibPickers"
-            gui.ResetOnSpawn = false
-            gui.IgnoreGuiInset = true
-            gui.DisplayOrder = 200
-            gui.Parent = player.PlayerGui
+            gui.Name = "MoonLibPickers"; gui.ResetOnSpawn = false
+            gui.IgnoreGuiInset = true; gui.DisplayOrder = 200
+            gui.Parent = plr.PlayerGui
         end
 
         local overlay = Instance.new("Frame", gui)
@@ -218,7 +246,6 @@ function SwordPreviewAddon._register(MoonLib)
 
         searchBox:GetPropertyChangedSignal("Text"):Connect(function() populate(searchBox.Text) end)
         populate("")
-
         SP:AttachLazyLoader(list, {SourceFolder = sourceFolder})
 
         local dragging, dragStart, frameStart = false, nil, nil
@@ -250,19 +277,9 @@ function SwordPreviewAddon._register(MoonLib)
         vp.LayoutOrder = -1
         Instance.new("UICorner", vp).CornerRadius = UDim.new(0, 6)
         local api = {}
-        function api:Set(modelName)
-            if modelName then SP:Build(vp, modelName, opts) end
-        end
+        function api:Set(modelName) if modelName then SP:Build(vp, modelName, opts) end end
         function api:GetViewport() return vp end
         return api
-    end
-
-    function SP:SetupSettingsUI(Window)
-        Window:AddSettingsSection("Sword Preview", 300)
-        Window:AddSettingsButton("Clear Preview Cache", 301, function()
-            self._cache = {}
-            MoonLib:Notify("Preview cache cleared")
-        end)
     end
 
     MoonLib:RegisterAddon("SwordPreview", SP)
