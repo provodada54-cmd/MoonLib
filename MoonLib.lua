@@ -10,7 +10,7 @@ local camera = Workspace.CurrentCamera
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local MoonLib = {}
-MoonLib._version = "2.6.0"
+MoonLib._version = "2.7.0"
 MoonLib._addons = {}
 MoonLib._windows = {}
 MoonLib._connections = {}
@@ -28,7 +28,7 @@ MoonLib._theme = {
     textDim = Color3.fromRGB(130, 130, 145),
     textFaded = Color3.fromRGB(90, 90, 105),
     border = Color3.fromRGB(40, 40, 50),
-    borderGlow = Color3.fromRGB(70, 30, 55),
+    borderGlow = Color3.fromRGB(90, 40, 65),
     toggle_on = Color3.fromRGB(230, 40, 75),
     toggle_off = Color3.fromRGB(50, 50, 60),
     slider_bg = Color3.fromRGB(45, 45, 55),
@@ -66,8 +66,8 @@ end
 
 local function addGlow(parent, color, transparency, thickness)
     color = color or MoonLib._theme.accent
-    transparency = transparency or 0.85
-    thickness = thickness or 8
+    transparency = transparency or 0.75
+    thickness = thickness or 10
     return create("ImageLabel", {
         Name = "_Glow",
         BackgroundTransparency = 1,
@@ -93,9 +93,11 @@ function MoonLib:GetAddon(name) return self._addons[name] end
 function MoonLib:Connect(sig, fn) local c = sig:Connect(fn); table.insert(self._connections, c); return c end
 
 function MoonLib:CloseAllDropdowns()
-    for _, dd in ipairs(self._openDropdowns) do
+    for i = #self._openDropdowns, 1, -1 do
+        local dd = self._openDropdowns[i]
         pcall(function() dd:Close() end)
     end
+    self._openDropdowns = {}
 end
 
 function MoonLib:Notify(text, duration)
@@ -125,7 +127,7 @@ function MoonLib:Prompt(opts)
     end
     local overlay = create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0, Parent = gui})
     local wrapper = create("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 320, 0, opts.Input and 160 or 130), BackgroundTransparency = 1, Parent = overlay})
-    addGlow(wrapper, theme.accent, 0.75, 12)
+    addGlow(wrapper, theme.accent, 0.7, 14)
     local frame = create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = theme.bg, BorderSizePixel = 0, Parent = wrapper})
     corner(frame, 10); stroke(frame, theme.accent, 1)
     create("TextLabel", {Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, 10), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = theme.accent, TextXAlignment = Enum.TextXAlignment.Left, Text = opts.Title or "Prompt", Parent = frame})
@@ -165,11 +167,11 @@ function MoonLib:CreateSubPopup(opts)
     local wrapper = create("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(0.5, 0, 0.5, 0),
-        Size = UDim2.new(0, opts.Width or 300, 0, opts.Height or 340),
+        Size = UDim2.new(0, opts.Width or 320, 0, opts.Height or 340),
         BackgroundTransparency = 1,
         Parent = overlay,
     })
-    addGlow(wrapper, theme.accent, 0.7, 14)
+    addGlow(wrapper, theme.accent, 0.65, 14)
 
     local frame = create("Frame", {
         Size = UDim2.new(1, 0, 1, 0),
@@ -221,11 +223,12 @@ function MoonLib:CreateSubPopup(opts)
 
     wrapper.Size = UDim2.new(0, 0, 0, 0)
     frame.BackgroundTransparency = 1
-    tween(wrapper, {Size = UDim2.new(0, opts.Width or 300, 0, opts.Height or 340)}, 0.2)
+    tween(wrapper, {Size = UDim2.new(0, opts.Width or 320, 0, opts.Height or 340)}, 0.2)
     tween(frame, {BackgroundTransparency = 0}, 0.2)
 
     local API = {}
     API.body = body
+    API._hostGui = gui
 
     function API:Close() close() end
 
@@ -287,9 +290,7 @@ function MoonLib:CreateSubPopup(opts)
         return S
     end
 
-    function API:AddDropdown(o)
-        return MoonLib:_makeDropdown(body, o, gui)
-    end
+    function API:AddDropdown(o) return MoonLib:_makeDropdown(body, o, gui) end
 
     function API:AddLabel(o)
         o = o or {}
@@ -312,15 +313,19 @@ function MoonLib:_makeDropdown(parentBody, opts, hostGui)
     local dropBtn = create("TextButton", {Size = UDim2.new(1, 0, 0, 22), Position = UDim2.new(0, 0, 0, 20), BackgroundColor3 = theme.bgTertiary, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = theme.text, Text = tostring(D.Value) .. "  ▼", AutoButtonColor = false, BorderSizePixel = 0, Parent = row})
     corner(dropBtn, 4)
 
-    -- dropList рендерится В ТОМ ЖЕ ScreenGui что и хост-контейнер, так UIScale применяется корректно
-    local function getHostScreenGui()
+    -- находим ScreenGui в котором мы находимся, чтобы UIScale учитывался
+    local function getHostGui()
         if hostGui then return hostGui end
         local p = parentBody
         while p and not p:IsA("ScreenGui") do p = p.Parent end
         return p
     end
 
-    local dropListParent = getHostScreenGui() or player.PlayerGui
+    local hostScreenGui = getHostGui() or player.PlayerGui
+    local hostScale = 1
+    for _, ch in ipairs(hostScreenGui:GetChildren()) do
+        if ch:IsA("UIScale") then hostScale = ch.Scale; break end
+    end
 
     local dropList = create("Frame", {
         Size = UDim2.new(0, 100, 0, 0),
@@ -329,10 +334,12 @@ function MoonLib:_makeDropdown(parentBody, opts, hostGui)
         ClipsDescendants = true,
         Visible = false,
         ZIndex = 500,
-        Parent = dropListParent,
+        Parent = hostScreenGui,
     })
     corner(dropList, 4); stroke(dropList, theme.accent, 1)
     create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 1), Parent = dropList})
+
+    D._dropList = dropList
 
     local function rebuild()
         for _, c in ipairs(dropList:GetChildren()) do
@@ -340,6 +347,8 @@ function MoonLib:_makeDropdown(parentBody, opts, hostGui)
         end
         for idx, it in ipairs(D._items) do
             local ib = create("TextButton", {Size = UDim2.new(1, 0, 0, 20), BackgroundColor3 = theme.bg, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = theme.text, Text = tostring(it), AutoButtonColor = false, BorderSizePixel = 0, LayoutOrder = idx, ZIndex = 501, Parent = dropList})
+            ib.MouseEnter:Connect(function() tween(ib, {BackgroundColor3 = theme.bgTertiary}, 0.08) end)
+            ib.MouseLeave:Connect(function() tween(ib, {BackgroundColor3 = theme.bg}, 0.08) end)
             ib.MouseButton1Click:Connect(function()
                 D.Value = it; dropBtn.Text = tostring(it) .. "  ▼"
                 D:Close()
@@ -351,42 +360,37 @@ function MoonLib:_makeDropdown(parentBody, opts, hostGui)
     rebuild()
 
     local function computePosition()
-        -- позиции считаем в АБСОЛЮТНЫХ координатах экрана
         local btnAbsPos = dropBtn.AbsolutePosition
         local btnAbsSize = dropBtn.AbsoluteSize
-        local listHeight = #D._items * 21
         local vpSize = camera and camera.ViewportSize or Vector2.new(1920, 1080)
 
-        -- переводим абсолютные координаты в offsets ScreenGui (без учёта UIScale если она есть)
-        -- Проще: dropList находится в том же ScreenGui, значит его AbsolutePosition = наш Position * scale
-        -- Поэтому Position = btnAbsPos / scale
-        local hostScale = 1
-        local host = dropListParent
-        if host then
-            for _, ch in ipairs(host:GetChildren()) do
-                if ch:IsA("UIScale") then hostScale = ch.Scale; break end
-            end
+        -- динамически берём актуальный UIScale
+        local scale = 1
+        for _, ch in ipairs(hostScreenGui:GetChildren()) do
+            if ch:IsA("UIScale") then scale = ch.Scale; break end
         end
 
-        local posX = btnAbsPos.X / hostScale
-        local belowY = (btnAbsPos.Y + btnAbsSize.Y + 2) / hostScale
-        local aboveY = (btnAbsPos.Y - 2 - listHeight) / hostScale
+        local listHeightPx = #D._items * 21 * scale
+        local btnBottomPx = btnAbsPos.Y + btnAbsSize.Y
+        local spaceBelowPx = vpSize.Y - btnBottomPx - 8
+        local spaceAbovePx = btnAbsPos.Y - 8
 
-        -- места снизу хватает?
-        local spaceBelow = vpSize.Y - (btnAbsPos.Y + btnAbsSize.Y + 4)
-        local neededPx = listHeight * hostScale
+        local dropAbove = (spaceBelowPx < listHeightPx) and (spaceAbovePx >= listHeightPx)
 
-        local finalY
-        if spaceBelow >= neededPx then
-            finalY = belowY
-        elseif aboveY >= 0 then
-            finalY = aboveY
+        -- переводим абсолютные пиксели в offset для дочерника ScreenGui с UIScale
+        local posX = btnAbsPos.X / scale
+        local width = btnAbsSize.X / scale
+        local heightUnscaled = #D._items * 21
+
+        local posY
+        if dropAbove then
+            posY = (btnAbsPos.Y / scale) - heightUnscaled - 2
         else
-            finalY = belowY
+            posY = ((btnAbsPos.Y + btnAbsSize.Y) / scale) + 2
         end
 
-        dropList.Position = UDim2.new(0, posX, 0, finalY)
-        dropList.Size = UDim2.new(0, btnAbsSize.X / hostScale, 0, listHeight)
+        dropList.Position = UDim2.new(0, posX, 0, posY)
+        dropList.Size = UDim2.new(0, width, 0, heightUnscaled)
     end
 
     function D:Open()
@@ -410,7 +414,11 @@ function MoonLib:_makeDropdown(parentBody, opts, hostGui)
     end
 
     dropBtn.MouseButton1Click:Connect(function()
-        if D._open then D:Close() else D:Open() end
+        if D._open then
+            D:Close()
+        else
+            D:Open()
+        end
     end)
 
     dropBtn.AncestryChanged:Connect(function(_, parent)
@@ -423,19 +431,22 @@ function MoonLib:_makeDropdown(parentBody, opts, hostGui)
     return D
 end
 
--- глобальный обработчик кликов вне dropdown — закрывает открытые
+-- глобальный обработчик клика "мимо" — закрывает открытые дропдауны
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
     if #MoonLib._openDropdowns == 0 then return end
     local mp = UserInputService:GetMouseLocation()
-    -- если клик попал внутрь любого dropList или на dropBtn — не закрываем
+    local toClose = {}
     for _, dd in ipairs(MoonLib._openDropdowns) do
-        -- нужно проверить попадание в открытый dropList; т.к. нет прямого доступа снаружи, добавим API
-        if dd._open then
-            local list = dd._dropList
+        if dd._dropList and dd._dropList.Visible then
+            local ap = dd._dropList.AbsolutePosition
+            local as = dd._dropList.AbsoluteSize
+            local inside = mp.X >= ap.X and mp.X <= ap.X + as.X and (mp.Y - 36) >= ap.Y and (mp.Y - 36) <= ap.Y + as.Y
+            if not inside then table.insert(toClose, dd) end
         end
     end
+    for _, dd in ipairs(toClose) do pcall(function() dd:Close() end) end
 end)
 
 function MoonLib:CreateWindow(options)
@@ -478,7 +489,7 @@ function MoonLib:CreateWindow(options)
         BackgroundTransparency = 1,
         Parent = screenGui,
     })
-    addGlow(mainWrapper, self._theme.accent, 0.82, 18)
+    addGlow(mainWrapper, self._theme.accent, 0.72, 18)
 
     local mainFrame = create("Frame", {
         Name = "MainFrame",
@@ -489,7 +500,7 @@ function MoonLib:CreateWindow(options)
         Parent = mainWrapper,
     })
     corner(mainFrame, 10)
-    stroke(mainFrame, self._theme.border, 1)
+    stroke(mainFrame, self._theme.borderGlow, 1)
 
     local titleBar = create("Frame", {Name = "TitleBar", Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = self._theme.bgSecondary, BorderSizePixel = 0, Parent = mainFrame})
     corner(titleBar, 10)
@@ -512,7 +523,7 @@ function MoonLib:CreateWindow(options)
     corner(settingsPanel, 8)
     local settingsScroll = create("ScrollingFrame", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = self._theme.accent, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, Parent = settingsPanel})
     create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6), Parent = settingsScroll})
-    padding(settingsScroll, 12, 28, 14, 14)
+    padding(settingsScroll, 12, 40, 14, 14)
 
     local settingsOpen = false
 
@@ -522,7 +533,7 @@ function MoonLib:CreateWindow(options)
             if t.button then
                 tween(t.button, {BackgroundTransparency = 1, TextColor3 = MoonLib._theme.textDim})
                 local ic = t.button:FindFirstChildOfClass("ImageLabel")
-                if ic then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
+                if ic and ic.Name ~= "_Glow" then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
                 local g = t.button:FindFirstChild("_Glow")
                 if g then g.Visible = false end
             end
@@ -674,12 +685,12 @@ function MoonLib:CreateWindow(options)
             BackgroundColor3 = MoonLib._theme.bgSecondary,
             BorderSizePixel = 0,
             LayoutOrder = order,
-            ClipsDescendants = true,
+            ClipsDescendants = false,
             Parent = settingsScroll
         })
         corner(frame, 6)
         create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6), Parent = frame})
-        padding(frame, 10, 12, 12, 12)
+        padding(frame, 10, 14, 12, 12)
         return frame
     end
 
@@ -699,7 +710,7 @@ function MoonLib:CreateWindow(options)
         local w = TextService:GetTextSize(btnText, 12, Enum.Font.GothamBold, Vector2.new(1000, 100)).X + (tabIcon and 24 or 20)
         local tabBtn = create("TextButton", {Size = UDim2.new(0, w, 0, 26), BackgroundColor3 = MoonLib._theme.bgTertiary, BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = MoonLib._theme.textDim, Text = btnText, AutoButtonColor = false, BorderSizePixel = 0, ClipsDescendants = false, Parent = tabScroll})
         corner(tabBtn, 6)
-        local tabGlow = addGlow(tabBtn, MoonLib._theme.accent, 0.75, 6)
+        local tabGlow = addGlow(tabBtn, MoonLib._theme.accent, 0.65, 6)
         tabGlow.Visible = false
         if tabIcon then
             create("ImageLabel", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 8, 0.5, -7), BackgroundTransparency = 1, Image = tabIcon, ImageColor3 = MoonLib._theme.textDim, Parent = tabBtn})
@@ -732,7 +743,7 @@ function MoonLib:CreateWindow(options)
                 LayoutOrder = #Tab.sections + 1,
                 Parent = parent
             })
-            addGlow(secWrapper, MoonLib._theme.accent, 0.9, 6)
+            addGlow(secWrapper, MoonLib._theme.accent, 0.82, 8)
 
             local secFrame = create("Frame", {
                 Size = UDim2.new(1, 0, 0, 0),
@@ -813,7 +824,10 @@ function MoonLib:CreateWindow(options)
                 })
                 gear.MouseEnter:Connect(function() tween(gear, {ImageColor3 = MoonLib._theme.accent}, 0.1) end)
                 gear.MouseLeave:Connect(function() tween(gear, {ImageColor3 = MoonLib._theme.textFaded}, 0.1) end)
-                gear.MouseButton1Click:Connect(function() pcall(sOpts.OnSettings, Section) end)
+                gear.MouseButton1Click:Connect(function()
+                    local ok, err = pcall(sOpts.OnSettings, Section)
+                    if not ok then warn("[MoonLib] OnSettings error: " .. tostring(err)) end
+                end)
             end
 
             local body = create("Frame", {
