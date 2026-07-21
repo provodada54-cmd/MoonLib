@@ -254,42 +254,15 @@ function ConfigAddon._register(MoonLib)
         end)
 
         local wrapper = Window:AddSettingsContainer(102)
-        wrapper.AutomaticSize = Enum.AutomaticSize.None
-        wrapper.Size = UDim2.new(1, 0, 0, 0)
-        wrapper.ClipsDescendants = true
-
-        local inner = Instance.new("Frame", wrapper)
-        inner.Size = UDim2.new(1, 0, 0, 0)
-        inner.AutomaticSize = Enum.AutomaticSize.Y
-        inner.BackgroundTransparency = 1
-        inner.BorderSizePixel = 0
-
-        local innerLayout = Instance.new("UIListLayout", inner)
-        innerLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        innerLayout.Padding = UDim.new(0, 6)
+        wrapper.AutomaticSize = Enum.AutomaticSize.Y
+        wrapper.Visible = not self._autoSave
 
         self._managerFrame = wrapper
-        self._managerInner = inner
-        self._managerLayout = innerLayout
-
-        self:_buildManagerUI(inner)
-
-        task.wait()
-        local targetH = innerLayout.AbsoluteContentSize.Y + 4
-        if self._autoSave then
-            wrapper.Size = UDim2.new(1, 0, 0, 0)
-        else
-            wrapper.Size = UDim2.new(1, 0, 0, targetH)
-        end
+        self:_buildManagerUI(wrapper)
 
         function self:_animateManager()
-            if not self._managerFrame or not self._managerLayout then return end
-            local h = self._managerLayout.AbsoluteContentSize.Y + 4
-            if not self._autoSave then
-                TweenService:Create(self._managerFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, h)}):Play()
-            else
-                TweenService:Create(self._managerFrame, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 0)}):Play()
-            end
+            if not self._managerFrame then return end
+            self._managerFrame.Visible = not self._autoSave
         end
     end
 
@@ -307,98 +280,28 @@ function ConfigAddon._register(MoonLib)
         local function refreshCurrent() currentLabel.Text = "Current: " .. (self:GetCurrentConfig() or "none") end
         refreshCurrent()
 
-        local dropBtn = Instance.new("TextButton", container)
-        dropBtn.Size = UDim2.new(1, 0, 0, 26)
-        dropBtn.BackgroundColor3 = theme.bgTertiary
-        dropBtn.Font = Enum.Font.Gotham
-        dropBtn.TextSize = 11
-        dropBtn.TextColor3 = theme.text
-        dropBtn.Text = "Select config...  ▼"
-        dropBtn.AutoButtonColor = false
-        dropBtn.BorderSizePixel = 0
-        dropBtn.LayoutOrder = 1
-        Instance.new("UICorner", dropBtn).CornerRadius = UDim.new(0, 4)
+        -- используем MoonLib:_makeDropdown с анимацией и правильным направлением
+        local ddWrapper = Instance.new("Frame", container)
+        ddWrapper.Size = UDim2.new(1, 0, 0, 42)
+        ddWrapper.BackgroundTransparency = 1
+        ddWrapper.ClipsDescendants = false
+        ddWrapper.LayoutOrder = 1
 
-        local dropOverlay = game.Players.LocalPlayer.PlayerGui:FindFirstChild("MoonLibDropdowns")
-        if not dropOverlay then
-            dropOverlay = Instance.new("ScreenGui")
-            dropOverlay.Name = "MoonLibDropdowns"
-            dropOverlay.ResetOnSpawn = false
-            dropOverlay.IgnoreGuiInset = true
-            dropOverlay.DisplayOrder = 400
-            dropOverlay.Parent = game.Players.LocalPlayer.PlayerGui
-        end
+        local ddLayout = Instance.new("UIListLayout", ddWrapper)
+        ddLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-        local dropList = Instance.new("Frame", dropOverlay)
-        dropList.Size = UDim2.new(0, 100, 0, 0)
-        dropList.BackgroundColor3 = theme.bgTertiary
-        dropList.BorderSizePixel = 0
-        dropList.ClipsDescendants = true
-        dropList.Visible = false
-        Instance.new("UICorner", dropList).CornerRadius = UDim.new(0, 4)
-        local ds = Instance.new("UIStroke", dropList); ds.Color = theme.accent; ds.Thickness = 1
-        Instance.new("UIListLayout", dropList).SortOrder = Enum.SortOrder.LayoutOrder
+        local dropdown = MoonLib:_makeDropdown(ddWrapper, {
+            Name = "Select config",
+            Items = self:ListConfigs(),
+            Default = "",
+        })
 
         local selected = nil
-        local isOpen = false
+        dropdown:OnChanged(function(v) selected = v end)
 
-        local function rebuildList()
-            for _, c in ipairs(dropList:GetChildren()) do
-                if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end
-            end
-            local list = self:ListConfigs()
-            if #list == 0 then
-                local empty = Instance.new("TextLabel", dropList)
-                empty.Size = UDim2.new(1, 0, 0, 20)
-                empty.BackgroundColor3 = theme.bg
-                empty.BorderSizePixel = 0
-                empty.Font = Enum.Font.Gotham
-                empty.TextSize = 10
-                empty.TextColor3 = theme.textDim
-                empty.Text = "No configs"
-                return 1
-            end
-            for idx, name in ipairs(list) do
-                local ib = Instance.new("TextButton", dropList)
-                ib.Size = UDim2.new(1, 0, 0, 20)
-                ib.BackgroundColor3 = theme.bg
-                ib.Font = Enum.Font.Gotham
-                ib.TextSize = 11
-                ib.TextColor3 = theme.text
-                ib.Text = name
-                ib.AutoButtonColor = false
-                ib.BorderSizePixel = 0
-                ib.LayoutOrder = idx
-                ib.MouseButton1Click:Connect(function()
-                    selected = name
-                    dropBtn.Text = name .. "  ▼"
-                    dropList.Visible = false
-                    isOpen = false
-                end)
-            end
-            return #list
+        local function refreshList()
+            dropdown:SetItems(self:ListConfigs())
         end
-
-        local function positionList()
-            local abs = dropBtn.AbsolutePosition
-            local sz = dropBtn.AbsoluteSize
-            dropList.Position = UDim2.new(0, abs.X, 0, abs.Y + sz.Y + 2)
-        end
-
-        dropBtn.MouseButton1Click:Connect(function()
-            isOpen = not isOpen
-            if isOpen then
-                local count = rebuildList()
-                local sz = dropBtn.AbsoluteSize
-                positionList()
-                dropList.Size = UDim2.new(0, sz.X, 0, count * 21)
-                dropList.Visible = true
-            else
-                dropList.Visible = false
-            end
-        end)
-
-        dropBtn.AncestryChanged:Connect(function(_, p) if not p then pcall(function() dropList:Destroy() end) end end)
 
         local function makeRowBtn(text, layoutOrder)
             local b = Instance.new("TextButton", container)
@@ -436,13 +339,13 @@ function ConfigAddon._register(MoonLib)
         refreshAl()
 
         loadBtn.MouseButton1Click:Connect(function()
-            if not selected then MoonLib:Notify("Select a config first"); return end
+            if not selected or selected == "" then MoonLib:Notify("Select a config first"); return end
             if self:LoadConfig(selected) then MoonLib:Notify("Loaded: " .. selected); refreshCurrent()
             else MoonLib:Notify("Failed to load") end
         end)
 
         saveBtn.MouseButton1Click:Connect(function()
-            if not selected then MoonLib:Notify("Select a config first"); return end
+            if not selected or selected == "" then MoonLib:Notify("Select a config first"); return end
             self:SaveConfig(selected); MoonLib:Notify("Saved: " .. selected); refreshCurrent()
         end)
 
@@ -454,31 +357,32 @@ function ConfigAddon._register(MoonLib)
                     local ok, res = self:CreateConfig(name)
                     if ok then
                         MoonLib:Notify("Created: " .. res)
-                        selected = res; dropBtn.Text = res .. "  ▼"; refreshCurrent()
-                        if self._managerFrame and self._managerLayout then
-                            task.wait()
-                            TweenService:Create(self._managerFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, self._managerLayout.AbsoluteContentSize.Y + 4)}):Play()
-                        end
+                        selected = res
+                        refreshList()
+                        dropdown:Set(res)
+                        refreshCurrent()
                     else MoonLib:Notify(res or "Failed") end
                 end,
             })
         end)
 
         delBtn.MouseButton1Click:Connect(function()
-            if not selected then MoonLib:Notify("Select a config first"); return end
+            if not selected or selected == "" then MoonLib:Notify("Select a config first"); return end
             MoonLib:Prompt({
                 Title = "Delete Config", Message = "Delete '" .. selected .. "'?", OkText = "Delete",
                 OnConfirm = function()
                     self:DeleteConfig(selected)
                     MoonLib:Notify("Deleted: " .. selected)
-                    selected = nil; dropBtn.Text = "Select config...  ▼"
+                    selected = nil
+                    refreshList()
+                    dropdown:Set("")
                     refreshCurrent(); refreshAl()
                 end,
             })
         end)
 
         setAlBtn.MouseButton1Click:Connect(function()
-            if not selected then MoonLib:Notify("Select a config first"); return end
+            if not selected or selected == "" then MoonLib:Notify("Select a config first"); return end
             self:SetAutoLoad(selected); refreshAl(); MoonLib:Notify("Auto-Load: " .. selected)
         end)
 
@@ -486,7 +390,7 @@ function ConfigAddon._register(MoonLib)
             self:SetAutoLoad(nil); refreshAl(); MoonLib:Notify("Auto-Load cleared")
         end)
 
-        self:OnListChanged(function() refreshCurrent(); refreshAl() end)
+        self:OnListChanged(function() refreshCurrent(); refreshAl(); refreshList() end)
     end
 
     MoonLib:RegisterAddon("Config", Config)
