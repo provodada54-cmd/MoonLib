@@ -10,7 +10,7 @@ local camera = Workspace.CurrentCamera
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local MoonLib = {}
-MoonLib._version = "3.2.0"
+MoonLib._version = "3.3.0"
 MoonLib._addons = {}
 MoonLib._windows = {}
 MoonLib._connections = {}
@@ -63,26 +63,6 @@ local function padding(parent, t, b, l, r)
     })
 end
 
-local function addShadow(parent, color, size, transparency)
-    color = color or MoonLib._theme.accent
-    size = size or 30
-    transparency = transparency or 0.5
-    return create("ImageLabel", {
-        Name = "_Shadow",
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        Size = UDim2.new(1, size * 2, 1, size * 2),
-        Image = SHADOW_IMAGE,
-        ImageColor3 = color,
-        ImageTransparency = transparency,
-        ScaleType = Enum.ScaleType.Slice,
-        SliceCenter = Rect.new(24, 24, 276, 276),
-        ZIndex = 0,
-        Parent = parent,
-    })
-end
-
 local function getScale()
     local vp = camera and camera.ViewportSize or Vector2.new(1920, 1080)
     return math.clamp(vp.Y / BASE_SCREEN, 0.5, 2)
@@ -120,7 +100,6 @@ function MoonLib:Prompt(opts)
     local overlay = create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0, Parent = gui})
     local frame = create("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 320, 0, opts.Input and 160 or 130), BackgroundColor3 = theme.bg, BorderSizePixel = 0, Parent = overlay})
     corner(frame, 10); stroke(frame, theme.accent, 1)
-    addShadow(frame, theme.accent, 30, 0.5)
     create("TextLabel", {Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, 10), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = theme.accent, TextXAlignment = Enum.TextXAlignment.Left, Text = opts.Title or "Prompt", Parent = frame})
     create("TextLabel", {Size = UDim2.new(1, -20, 0, 30), Position = UDim2.new(0, 10, 0, 36), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = theme.text, TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = true, Text = opts.Message or "", Parent = frame})
 
@@ -166,7 +145,6 @@ function MoonLib:CreateSubPopup(opts)
     })
     corner(frame, 10)
     stroke(frame, theme.accent, 1)
-    addShadow(frame, theme.accent, 35, 0.45)
 
     local titleBar = create("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = theme.bgSecondary, BorderSizePixel = 0, Parent = frame})
     corner(titleBar, 10)
@@ -507,41 +485,76 @@ function MoonLib:CreateWindow(options)
     corner(mainFrame, 10)
     stroke(mainFrame, self._theme.borderGlow, 1)
 
-    local darkShadow = create("ImageLabel", {
-        Name = "_DarkShadow",
+    local auraGui = create("ScreenGui", {
+        Name = "MoonLibAura", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 99,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling, Parent = player.PlayerGui
+    })
+    table.insert(self._windows, auraGui)
+
+    local auraScale = create("UIScale", {Scale = getScale(), Parent = auraGui})
+    self:Connect(camera:GetPropertyChangedSignal("ViewportSize"), function() tween(auraScale, {Scale = getScale()}) end)
+
+    local auraFrame = create("Frame", {
+        Name = "AuraFrame",
         AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundTransparency = 1,
         Position = UDim2.new(0.5, 0, 0.5, 0),
-        Size = UDim2.new(1, 80, 1, 80),
+        Size = size,
+        BackgroundTransparency = 1,
+        Parent = auraGui,
+    })
+
+    local auraOuter = create("ImageLabel", {
+        BackgroundTransparency = 1,
         Image = SHADOW_IMAGE,
-        ImageColor3 = Color3.new(0, 0, 0),
+        ImageColor3 = self._theme.accent,
         ImageTransparency = 0.4,
         ScaleType = Enum.ScaleType.Slice,
         SliceCenter = Rect.new(24, 24, 276, 276),
-        ZIndex = 0,
-        Parent = mainFrame,
-    })
-
-    local neonGlow = create("ImageLabel", {
-        Name = "_NeonGlow",
         AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 80, 1, 80),
         Position = UDim2.new(0.5, 0, 0.5, 0),
-        Size = UDim2.new(1, 40, 1, 40),
+        Parent = auraFrame,
+    })
+    local auraMid = create("ImageLabel", {
+        BackgroundTransparency = 1,
         Image = SHADOW_IMAGE,
-        ImageColor3 = self._theme.accent,
+        ImageColor3 = self._theme.accentGlow,
         ImageTransparency = 0.5,
         ScaleType = Enum.ScaleType.Slice,
         SliceCenter = Rect.new(24, 24, 276, 276),
-        ZIndex = 0,
-        Parent = mainFrame,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.new(1, 44, 1, 44),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Parent = auraFrame,
+    })
+    local auraInner = create("ImageLabel", {
+        BackgroundTransparency = 1,
+        Image = SHADOW_IMAGE,
+        ImageColor3 = self._theme.accent,
+        ImageTransparency = 0.35,
+        ScaleType = Enum.ScaleType.Slice,
+        SliceCenter = Rect.new(24, 24, 276, 276),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.new(1, 20, 1, 20),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Parent = auraFrame,
     })
 
+    self:Connect(RunService.RenderStepped, function()
+        if mainFrame and mainFrame.Parent then
+            auraFrame.Position = mainFrame.Position
+            auraFrame.Size = mainFrame.Size
+            auraFrame.Visible = mainFrame.Visible
+        end
+    end)
+
     task.spawn(function()
-        while neonGlow and neonGlow.Parent do
-            tween(neonGlow, {ImageTransparency = 0.4}, 2.5)
+        while auraFrame and auraFrame.Parent do
+            tween(auraOuter, {ImageTransparency = 0.5}, 2.5)
+            tween(auraMid, {ImageTransparency = 0.6}, 2.5)
             task.wait(2.5)
-            tween(neonGlow, {ImageTransparency = 0.65}, 2.5)
+            tween(auraOuter, {ImageTransparency = 0.35}, 2.5)
+            tween(auraMid, {ImageTransparency = 0.45}, 2.5)
             task.wait(2.5)
         end
     end)
@@ -597,7 +610,7 @@ function MoonLib:CreateWindow(options)
             if t.button then
                 tween(t.button, {BackgroundTransparency = 1, TextColor3 = MoonLib._theme.textDim})
                 local ic = t.button:FindFirstChildOfClass("ImageLabel")
-                if ic and ic.Name ~= "_Shadow" and ic.Name ~= "_DarkShadow" and ic.Name ~= "_NeonGlow" then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
+                if ic then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
             end
         end
         Window.activeTab = nil
@@ -1005,13 +1018,13 @@ function MoonLib:CreateWindow(options)
                 if t.button then
                     tween(t.button, {BackgroundTransparency = 1, TextColor3 = MoonLib._theme.textDim})
                     local ic = t.button:FindFirstChildOfClass("ImageLabel")
-                    if ic and ic.Name ~= "_Shadow" and ic.Name ~= "_DarkShadow" and ic.Name ~= "_NeonGlow" then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
+                    if ic then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
                 end
             end
             tabPage.Visible = true
             tween(tabBtn, {BackgroundTransparency = 0, BackgroundColor3 = MoonLib._theme.accentDim, TextColor3 = MoonLib._theme.text})
             local ic = tabBtn:FindFirstChildOfClass("ImageLabel")
-            if ic and ic.Name ~= "_Shadow" and ic.Name ~= "_DarkShadow" and ic.Name ~= "_NeonGlow" then tween(ic, {ImageColor3 = MoonLib._theme.accent}) end
+            if ic then tween(ic, {ImageColor3 = MoonLib._theme.accent}) end
             Window.activeTab = Tab
             if settingsOpen then
                 settingsOpen = false
@@ -1027,7 +1040,10 @@ function MoonLib:CreateWindow(options)
         return Tab
     end
 
-    function Window:Destroy() pcall(function() screenGui:Destroy() end) end
+    function Window:Destroy()
+        pcall(function() screenGui:Destroy() end)
+        pcall(function() auraGui:Destroy() end)
+    end
 
     return Window
 end
