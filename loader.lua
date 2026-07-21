@@ -14,7 +14,7 @@ local addonFiles = {
 }
 
 for _, path in ipairs(addonFiles) do
-    local ok, result = pcall(function()
+    pcall(function()
         local code = fetch(path)
         local addonModule = loadstring(code)()
         if addonModule and type(addonModule._register) == "function" then
