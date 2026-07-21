@@ -23,7 +23,6 @@ end
 
 local MoonLib = load("MoonLib.lua")
 
--- регистрируем аддоны
 local addons = {"Config", "Keybinds", "SwordPreview"}
 for _, name in ipairs(addons) do
     local ok, err = pcall(function()
