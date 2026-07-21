@@ -1,5 +1,3 @@
---[[ MoonLib v2.1 — Arcane style ]]
-
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -12,7 +10,7 @@ local camera = Workspace.CurrentCamera
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local MoonLib = {}
-MoonLib._version = "2.1.0"
+MoonLib._version = "2.2.0"
 MoonLib._addons = {}
 MoonLib._windows = {}
 MoonLib._connections = {}
@@ -89,7 +87,42 @@ function MoonLib:Notify(text, duration)
     task.delay(duration, function() tween(n, {BackgroundTransparency = 1}, 0.3); task.wait(0.35); pcall(function() n:Destroy() end) end)
 end
 
---[[ WINDOW ]]
+function MoonLib:Prompt(opts)
+    opts = opts or {}
+    local theme = self._theme
+    local gui = player.PlayerGui:FindFirstChild("MoonLibPrompts")
+    if not gui then
+        gui = create("ScreenGui", {Name = "MoonLibPrompts", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 500, Parent = player.PlayerGui})
+    end
+    local overlay = create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0, Parent = gui})
+    local frame = create("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 320, 0, opts.Input and 160 or 130), BackgroundColor3 = theme.bg, BorderSizePixel = 0, Parent = overlay})
+    corner(frame, 10); stroke(frame, theme.accent, 1)
+    create("TextLabel", {Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, 10), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = theme.accent, TextXAlignment = Enum.TextXAlignment.Left, Text = opts.Title or "Prompt", Parent = frame})
+    create("TextLabel", {Size = UDim2.new(1, -20, 0, 30), Position = UDim2.new(0, 10, 0, 36), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = theme.text, TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = true, Text = opts.Message or "", Parent = frame})
+
+    local inputBox
+    if opts.Input then
+        inputBox = create("TextBox", {Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, 72), BackgroundColor3 = theme.bgTertiary, BorderSizePixel = 0, Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = theme.text, PlaceholderText = opts.Placeholder or "", PlaceholderColor3 = theme.textDim, Text = opts.Default or "", TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, Parent = frame})
+        corner(inputBox, 4); padding(inputBox, 0, 0, 8, 8)
+    end
+
+    local btnY = opts.Input and 108 or 78
+    local cancelBtn = create("TextButton", {Size = UDim2.new(0.5, -14, 0, 32), Position = UDim2.new(0, 10, 0, btnY), BackgroundColor3 = theme.bgTertiary, Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = theme.text, Text = opts.CancelText or "Cancel", AutoButtonColor = false, BorderSizePixel = 0, Parent = frame})
+    corner(cancelBtn, 6)
+    local okBtn = create("TextButton", {Size = UDim2.new(0.5, -14, 0, 32), Position = UDim2.new(0.5, 4, 0, btnY), BackgroundColor3 = theme.accent, Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = theme.text, Text = opts.OkText or "OK", AutoButtonColor = false, BorderSizePixel = 0, Parent = frame})
+    corner(okBtn, 6)
+
+    local function close() pcall(function() overlay:Destroy() end) end
+    cancelBtn.MouseButton1Click:Connect(function()
+        close()
+        if opts.OnCancel then pcall(opts.OnCancel) end
+    end)
+    okBtn.MouseButton1Click:Connect(function()
+        local val = inputBox and inputBox.Text or nil
+        close()
+        if opts.OnConfirm then pcall(opts.OnConfirm, val) end
+    end)
+end
 
 function MoonLib:CreateWindow(options)
     options = options or {}
@@ -108,7 +141,6 @@ function MoonLib:CreateWindow(options)
     local uiScale = create("UIScale", {Scale = getScale(), Parent = screenGui})
     self:Connect(camera:GetPropertyChangedSignal("ViewportSize"), function() tween(uiScale, {Scale = getScale()}) end)
 
-    -- МИНИ-ИКОНКА (квадрат с закруглёнными краями, всегда видна)
     local miniIcon = create("ImageButton", {
         Name = "MiniIcon",
         Size = UDim2.new(0, MINI_SIZE, 0, MINI_SIZE),
@@ -122,11 +154,8 @@ function MoonLib:CreateWindow(options)
     })
     corner(miniIcon, 12)
     stroke(miniIcon, self._theme.accent, 2)
-
-    -- лёгкий inner padding через UIPadding чтобы иконка не касалась краёв
     padding(miniIcon, 4, 4, 4, 4)
 
-    -- ГЛАВНОЕ ОКНО
     local mainFrame = create("Frame", {
         Name = "MainFrame",
         AnchorPoint = Vector2.new(0.5, 0.5),
@@ -140,7 +169,6 @@ function MoonLib:CreateWindow(options)
     corner(mainFrame, 10)
     stroke(mainFrame, self._theme.border, 1)
 
-    -- TITLE BAR
     local titleBar = create("Frame", {Name = "TitleBar", Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = self._theme.bgSecondary, BorderSizePixel = 0, Parent = mainFrame})
     corner(titleBar, 10)
     create("Frame", {Size = UDim2.new(1, 0, 0, 14), Position = UDim2.new(0, 0, 1, -14), BackgroundColor3 = self._theme.bgSecondary, BorderSizePixel = 0, Parent = titleBar})
@@ -149,7 +177,6 @@ function MoonLib:CreateWindow(options)
     create("TextLabel", {Size = UDim2.new(0, 250, 1, 0), Position = UDim2.new(0, 44, 0, 0), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = self._theme.accent, TextXAlignment = Enum.TextXAlignment.Left, Text = title, Parent = titleBar})
     create("TextLabel", {Size = UDim2.new(0, 140, 1, 0), Position = UDim2.new(1, -156, 0, 0), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = self._theme.textDim, TextXAlignment = Enum.TextXAlignment.Right, Text = player.DisplayName, Parent = titleBar})
 
-    -- TABS
     local tabBar = create("Frame", {Name = "TabBar", Size = UDim2.new(1, -16, 0, 32), Position = UDim2.new(0, 8, 0, 48), BackgroundTransparency = 1, Parent = mainFrame})
     local tabScroll = create("ScrollingFrame", {Size = UDim2.new(1, -40, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.X, ScrollingDirection = Enum.ScrollingDirection.X, Parent = tabBar})
     create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), VerticalAlignment = Enum.VerticalAlignment.Center, Parent = tabScroll})
@@ -157,10 +184,8 @@ function MoonLib:CreateWindow(options)
     local settingsGear = create("ImageButton", {Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(1, -30, 0.5, -12), BackgroundColor3 = self._theme.bgTertiary, BackgroundTransparency = 0.3, Image = "rbxassetid://7734053495", ImageColor3 = self._theme.textDim, AutoButtonColor = false, Parent = tabBar})
     corner(settingsGear, 6)
 
-    -- CONTENT
     local contentFrame = create("Frame", {Name = "Content", Size = UDim2.new(1, -16, 1, -92), Position = UDim2.new(0, 8, 0, 84), BackgroundTransparency = 1, ClipsDescendants = true, Parent = mainFrame})
 
-    -- SETTINGS PANEL
     local settingsPanel = create("Frame", {Name = "SettingsPanel", Size = UDim2.new(1, -16, 1, -92), Position = UDim2.new(1, 8, 0, 84), BackgroundColor3 = self._theme.bgSection, BorderSizePixel = 0, ClipsDescendants = true, Parent = mainFrame})
     corner(settingsPanel, 8)
     local settingsScroll = create("ScrollingFrame", {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = self._theme.accent, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, Parent = settingsPanel})
@@ -182,9 +207,7 @@ function MoonLib:CreateWindow(options)
     end
     settingsGear.MouseButton1Click:Connect(toggleSettings)
 
-    -- ==== ОТКРЫТИЕ/ЗАКРЫТИЕ + DRAG для миниIcon ====
     local isTransitioning = false
-
     local function setOpen(state)
         if isTransitioning then return end
         Window.open = state
@@ -204,7 +227,6 @@ function MoonLib:CreateWindow(options)
         end
     end
 
-    -- drag окна
     do
         local dragging, dragStart, frameStart = false, nil, nil
         titleBar.InputBegan:Connect(function(input)
@@ -223,14 +245,12 @@ function MoonLib:CreateWindow(options)
         end)
     end
 
-    -- drag + клик для мини-иконки (ИСПРАВЛЕНО)
     do
         local mDragging = false
         local mDragStart = nil
         local mFrameStart = nil
         local mMoved = false
         local mActiveInputType = nil
-        local mCurrentPos = nil
 
         miniIcon.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -239,7 +259,6 @@ function MoonLib:CreateWindow(options)
                 mDragStart = input.Position
                 mFrameStart = miniIcon.Position
                 mActiveInputType = input.UserInputType
-                mCurrentPos = input.Position
             end
         end)
 
@@ -251,26 +270,20 @@ function MoonLib:CreateWindow(options)
                 if mMoved then
                     miniIcon.Position = UDim2.new(mFrameStart.X.Scale, mFrameStart.X.Offset + d.X, mFrameStart.Y.Scale, mFrameStart.Y.Offset + d.Y)
                 end
-                mCurrentPos = input.Position
             end
         end)
 
         self:Connect(UserInputService.InputEnded, function(input)
             if not mDragging then return end
             if input.UserInputType ~= mActiveInputType and input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
-
             local wasMoved = mMoved
             mDragging = false
             mMoved = false
             mActiveInputType = nil
-
-            if not wasMoved then
-                setOpen(not Window.open)
-            end
+            if not wasMoved then setOpen(not Window.open) end
         end)
     end
 
-    --[[ SETTINGS API ]]
     function Window:AddSettingsSection(text, order)
         order = order or (Window._settingsOrder + 1)
         Window._settingsOrder = order
@@ -318,12 +331,28 @@ function MoonLib:CreateWindow(options)
         return btn
     end
 
+    function Window:AddSettingsContainer(order)
+        order = order or (Window._settingsOrder + 1)
+        Window._settingsOrder = order
+        local frame = create("Frame", {
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundColor3 = MoonLib._theme.bgSecondary,
+            BorderSizePixel = 0,
+            LayoutOrder = order,
+            Parent = settingsScroll
+        })
+        corner(frame, 6)
+        create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4), Parent = frame})
+        padding(frame, 8, 8, 10, 10)
+        return frame
+    end
+
     function Window:GetSettingsScroll() return settingsScroll end
     function Window:GetScreenGui() return screenGui end
     function Window:GetMainFrame() return mainFrame end
     function Window:GetMiniIcon() return miniIcon end
 
-    --[[ TABS ]]
     function Window:AddTab(tabOpts)
         tabOpts = tabOpts or {}
         local tabName = tabOpts.Name or "Tab"
@@ -359,7 +388,6 @@ function MoonLib:CreateWindow(options)
 
             local Section = {}
 
-            -- секция как контейнер с UIListLayout (header + body идут вертикально, не накладываются)
             local secFrame = create("Frame", {
                 Size = UDim2.new(1, 0, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
@@ -379,7 +407,6 @@ function MoonLib:CreateWindow(options)
                 Parent = secFrame
             })
 
-            -- HEADER (фиксированная высота, LayoutOrder = 1)
             local headerRow = create("Frame", {
                 Size = UDim2.new(1, 0, 0, 34),
                 BackgroundTransparency = 1,
@@ -430,7 +457,6 @@ function MoonLib:CreateWindow(options)
                 gear.MouseButton1Click:Connect(function() pcall(sOpts.OnSettings) end)
             end
 
-            -- BODY (AutomaticSize + UIListLayout, LayoutOrder = 2 → всегда под header)
             local body = create("Frame", {
                 Size = UDim2.new(1, 0, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
@@ -521,7 +547,7 @@ function MoonLib:CreateWindow(options)
             function Section:AddDropdown(opts)
                 opts = opts or {}
                 local items = opts.Items or {}
-                local D = {Value = opts.Default or (items[1] or ""), _callbacks = {}, _open = false}
+                local D = {Value = opts.Default or (items[1] or ""), _callbacks = {}, _open = false, _items = items}
                 local row = create("Frame", {Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, LayoutOrder = next_(), Parent = body})
                 create("TextLabel", {Size = UDim2.new(1, 0, 0, 16), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = MoonLib._theme.text, TextXAlignment = Enum.TextXAlignment.Left, Text = opts.Name or "Dropdown", Parent = row})
                 local dropBtn = create("TextButton", {Size = UDim2.new(1, 0, 0, 22), Position = UDim2.new(0, 0, 0, 20), BackgroundColor3 = MoonLib._theme.bgTertiary, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = MoonLib._theme.text, Text = tostring(D.Value) .. "  ▼", AutoButtonColor = false, BorderSizePixel = 0, Parent = row})
@@ -529,20 +555,29 @@ function MoonLib:CreateWindow(options)
                 local dropList = create("Frame", {Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(0, 0, 1, 2), BackgroundColor3 = MoonLib._theme.bgTertiary, BorderSizePixel = 0, ClipsDescendants = true, Visible = false, ZIndex = 50, Parent = dropBtn})
                 corner(dropList, 4); stroke(dropList, MoonLib._theme.accent, 1)
                 create("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 1), Parent = dropList})
-                for idx, it in ipairs(items) do
-                    local ib = create("TextButton", {Size = UDim2.new(1, 0, 0, 20), BackgroundColor3 = MoonLib._theme.bg, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = MoonLib._theme.text, Text = tostring(it), AutoButtonColor = false, BorderSizePixel = 0, LayoutOrder = idx, ZIndex = 51, Parent = dropList})
-                    ib.MouseButton1Click:Connect(function()
-                        D.Value = it; dropBtn.Text = tostring(it) .. "  ▼"; dropList.Visible = false; D._open = false
-                        for _, cb in ipairs(D._callbacks) do pcall(cb, it) end
-                        if opts.Callback then pcall(opts.Callback, it) end
-                    end)
+
+                local function rebuild()
+                    for _, c in ipairs(dropList:GetChildren()) do
+                        if c:IsA("TextButton") then c:Destroy() end
+                    end
+                    for idx, it in ipairs(D._items) do
+                        local ib = create("TextButton", {Size = UDim2.new(1, 0, 0, 20), BackgroundColor3 = MoonLib._theme.bg, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = MoonLib._theme.text, Text = tostring(it), AutoButtonColor = false, BorderSizePixel = 0, LayoutOrder = idx, ZIndex = 51, Parent = dropList})
+                        ib.MouseButton1Click:Connect(function()
+                            D.Value = it; dropBtn.Text = tostring(it) .. "  ▼"; dropList.Visible = false; D._open = false
+                            for _, cb in ipairs(D._callbacks) do pcall(cb, it) end
+                            if opts.Callback then pcall(opts.Callback, it) end
+                        end)
+                    end
                 end
+                rebuild()
+
                 dropBtn.MouseButton1Click:Connect(function()
                     D._open = not D._open
                     dropList.Visible = D._open
-                    dropList.Size = UDim2.new(1, 0, 0, D._open and (#items * 21) or 0)
+                    dropList.Size = UDim2.new(1, 0, 0, D._open and (#D._items * 21) or 0)
                 end)
                 function D:Set(v) self.Value = v; dropBtn.Text = tostring(v) .. "  ▼" end
+                function D:SetItems(newItems) self._items = newItems or {}; rebuild() end
                 function D:OnChanged(cb) table.insert(self._callbacks, cb) end
                 return D
             end
