@@ -1,4 +1,5 @@
 local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
 
 local ConfigAddon = {}
 ConfigAddon._name = "Config"
@@ -31,15 +32,8 @@ function ConfigAddon._register(MoonLib)
         return Config._folder .. "/" .. name
     end
 
-    function Config:SetFolder(name)
-        self._folder = name
-        ensureFolder()
-    end
-
-    function Config:SetDefaults(defaults)
-        self._defaults = defaults
-        self._data = self:_deepClone(defaults)
-    end
+    function Config:SetFolder(name) self._folder = name; ensureFolder() end
+    function Config:SetDefaults(d) self._defaults = d; self._data = self:_deepClone(d) end
 
     function Config:_deepClone(t)
         if type(t) ~= "table" then return t end
@@ -50,39 +44,36 @@ function ConfigAddon._register(MoonLib)
 
     function Config:_merge(base, override)
         if type(base) ~= "table" or type(override) ~= "table" then return override end
-        local result = self:_deepClone(base)
+        local r = self:_deepClone(base)
         for k, v in pairs(override) do
-            if type(result[k]) == "table" and type(v) == "table" then
-                result[k] = self:_merge(result[k], v)
-            else
-                result[k] = self:_deepClone(v)
-            end
+            if type(r[k]) == "table" and type(v) == "table" then r[k] = self:_merge(r[k], v)
+            else r[k] = self:_deepClone(v) end
         end
-        return result
+        return r
     end
 
     function Config:_readMeta()
         ensureFolder()
         if not isfile then return {autoSave = true, autoLoad = nil} end
-        local path = filePath(self._metaFile)
-        if not isfile(path) then return {autoSave = true, autoLoad = nil} end
-        local ok, data = pcall(function() return HttpService:JSONDecode(readfile(path)) end)
-        if ok and data then return data end
+        local p = filePath(self._metaFile)
+        if not isfile(p) then return {autoSave = true, autoLoad = nil} end
+        local ok, d = pcall(function() return HttpService:JSONDecode(readfile(p)) end)
+        if ok and d then return d end
         return {autoSave = true, autoLoad = nil}
     end
 
-    function Config:_writeMeta(meta)
+    function Config:_writeMeta(m)
         ensureFolder()
         if not writefile then return end
-        pcall(function() writefile(filePath(self._metaFile), HttpService:JSONEncode(meta)) end)
+        pcall(function() writefile(filePath(self._metaFile), HttpService:JSONEncode(m)) end)
     end
 
     function Config:_readFile(name)
         if not isfile then return nil end
-        local path = filePath(name)
-        if not isfile(path) then return nil end
-        local ok, data = pcall(function() return HttpService:JSONDecode(readfile(path)) end)
-        if ok then return data end
+        local p = filePath(name)
+        if not isfile(p) then return nil end
+        local ok, d = pcall(function() return HttpService:JSONDecode(readfile(p)) end)
+        if ok then return d end
         return nil
     end
 
@@ -94,60 +85,56 @@ function ConfigAddon._register(MoonLib)
 
     function Config:_deleteFile(name)
         if not delfile then return end
-        local path = filePath(name)
-        if isfile and isfile(path) then pcall(function() delfile(path) end) end
+        local p = filePath(name)
+        if isfile and isfile(p) then pcall(function() delfile(p) end) end
     end
 
     function Config:GetAutoSave() return self._autoSave end
 
     function Config:SetAutoSave(state)
         self._autoSave = state
-        local meta = self:_readMeta()
-        meta.autoSave = state
-        self:_writeMeta(meta)
-        if state then
-            self:Save()
-        end
+        local m = self:_readMeta()
+        m.autoSave = state
+        self:_writeMeta(m)
+        if state then self:Save() end
     end
 
     function Config:GetAutoLoad() return self._autoLoadConfig end
 
-    function Config:SetAutoLoad(configName)
-        self._autoLoadConfig = configName
-        local meta = self:_readMeta()
-        meta.autoLoad = configName
-        self:_writeMeta(meta)
+    function Config:SetAutoLoad(n)
+        self._autoLoadConfig = n
+        local m = self:_readMeta()
+        m.autoLoad = n
+        self:_writeMeta(m)
     end
 
     function Config:GetCurrentConfig() return self._currentConfig end
 
     function Config:ListConfigs()
-        local result = {}
-        if not listfiles then return result end
+        local r = {}
+        if not listfiles then return r end
         ensureFolder()
         local ok, files = pcall(function() return listfiles(self._folder) end)
-        if not ok or not files then return result end
+        if not ok or not files then return r end
         for _, f in ipairs(files) do
             local name = f:match("([^/\\]+)%.json$")
-            if name and name ~= "_default" and name ~= "_meta" then
-                table.insert(result, name)
-            end
+            if name and name ~= "_default" and name ~= "_meta" then table.insert(r, name) end
         end
-        table.sort(result)
-        return result
+        table.sort(r)
+        return r
     end
 
     function Config:CreateConfig(name)
         if not name or name == "" then return false, "Name required" end
         name = name:gsub("[^%w_%-]", "_")
-        local fname = name .. ".json"
-        if isfile and isfile(filePath(fname)) then return false, "Already exists" end
-        local saveData = self:_deepClone(self._data)
-        saveData._version = self._version
-        self:_writeFile(fname, saveData)
+        local fn = name .. ".json"
+        if isfile and isfile(filePath(fn)) then return false, "Already exists" end
+        local d = self:_deepClone(self._data)
+        d._version = self._version
+        self:_writeFile(fn, d)
         self._currentConfig = name
         self:_fireListChanged()
-        return true
+        return true, name
     end
 
     function Config:DeleteConfig(name)
@@ -161,54 +148,45 @@ function ConfigAddon._register(MoonLib)
 
     function Config:SaveConfig(name)
         if not name or name == "" then return false end
-        local saveData = self:_deepClone(self._data)
-        saveData._version = self._version
-        self:_writeFile(name .. ".json", saveData)
+        local d = self:_deepClone(self._data)
+        d._version = self._version
+        self:_writeFile(name .. ".json", d)
         self._currentConfig = name
         return true
     end
 
     function Config:LoadConfig(name)
         if not name then return false end
-        local data = self:_readFile(name .. ".json")
-        if not data then return false end
-        if data._version and data._version < self._version then
-            data = self:_migrate(data)
-        end
-        self._data = self:_merge(self._defaults, data)
+        local d = self:_readFile(name .. ".json")
+        if not d then return false end
+        if d._version and d._version < self._version then d = self:_migrate(d) end
+        self._data = self:_merge(self._defaults, d)
         self._currentConfig = name
         self:ApplyAll()
         return true
     end
 
     function Config:OnListChanged(cb) table.insert(self._listChangedCallbacks, cb) end
-
-    function Config:_fireListChanged()
-        for _, cb in ipairs(self._listChangedCallbacks) do pcall(cb) end
-    end
+    function Config:_fireListChanged() for _, cb in ipairs(self._listChangedCallbacks) do pcall(cb) end end
 
     function Config:Load()
         ensureFolder()
-        local meta = self:_readMeta()
-        self._autoSave = meta.autoSave ~= false
-        self._autoLoadConfig = meta.autoLoad
+        local m = self:_readMeta()
+        self._autoSave = m.autoSave ~= false
+        self._autoLoadConfig = m.autoLoad
         if self._autoSave then
-            local data = self:_readFile(self._defaultFile)
-            if data then
-                if data._version and data._version < self._version then
-                    data = self:_migrate(data)
-                end
-                self._data = self:_merge(self._defaults, data)
+            local d = self:_readFile(self._defaultFile)
+            if d then
+                if d._version and d._version < self._version then d = self:_migrate(d) end
+                self._data = self:_merge(self._defaults, d)
             end
             self._currentConfig = nil
         else
             if self._autoLoadConfig then
-                local data = self:_readFile(self._autoLoadConfig .. ".json")
-                if data then
-                    if data._version and data._version < self._version then
-                        data = self:_migrate(data)
-                    end
-                    self._data = self:_merge(self._defaults, data)
+                local d = self:_readFile(self._autoLoadConfig .. ".json")
+                if d then
+                    if d._version and d._version < self._version then d = self:_migrate(d) end
+                    self._data = self:_merge(self._defaults, d)
                     self._currentConfig = self._autoLoadConfig
                 end
             end
@@ -220,61 +198,50 @@ function ConfigAddon._register(MoonLib)
         if self._suppressSave then return end
         if not self._autoSave then return end
         ensureFolder()
-        local saveData = self:_deepClone(self._data)
-        saveData._version = self._version
-        self:_writeFile(self._defaultFile, saveData)
+        local d = self:_deepClone(self._data)
+        d._version = self._version
+        self:_writeFile(self._defaultFile, d)
     end
 
-    function Config:_migrate(data)
-        data._version = self._version
-        return data
-    end
+    function Config:_migrate(d) d._version = self._version; return d end
 
     function Config:Get(path, default)
         local parts = string.split(path, ".")
-        local current = self._data
-        for _, part in ipairs(parts) do
-            if type(current) ~= "table" then return default end
-            current = current[part]
-            if current == nil then return default end
+        local c = self._data
+        for _, p in ipairs(parts) do
+            if type(c) ~= "table" then return default end
+            c = c[p]
+            if c == nil then return default end
         end
-        return current
+        return c
     end
 
     function Config:Set(path, value)
         local parts = string.split(path, ".")
-        local current = self._data
+        local c = self._data
         for i = 1, #parts - 1 do
-            if type(current[parts[i]]) ~= "table" then current[parts[i]] = {} end
-            current = current[parts[i]]
+            if type(c[parts[i]]) ~= "table" then c[parts[i]] = {} end
+            c = c[parts[i]]
         end
-        current[parts[#parts]] = value
+        c[parts[#parts]] = value
         self:Save()
         for _, cb in ipairs(self._callbacks) do pcall(cb, path, value) end
     end
 
     function Config:OnChanged(cb) table.insert(self._callbacks, cb) end
-
     function Config:GetAll() return self:_deepClone(self._data) end
-
-    function Config:Reset()
-        self._data = self:_deepClone(self._defaults)
-        self:Save()
-        self:ApplyAll()
-    end
+    function Config:Reset() self._data = self:_deepClone(self._defaults); self:Save(); self:ApplyAll() end
 
     function Config:Bind(path, element)
         self._bindings[path] = element
-        local saved = self:Get(path)
-        if saved ~= nil and element.Set then
+        local s = self:Get(path)
+        if s ~= nil and element.Set then
             self._suppressSave = true
-            pcall(function() element:Set(saved) end)
+            pcall(function() element:Set(s) end)
             self._suppressSave = false
         end
         if element.OnChanged then
-            element:OnChanged(function(v)
-                if not self._suppressSave then self:Set(path, v) end
-            end)
+            element:OnChanged(function(v) if not self._suppressSave then self:Set(path, v) end end)
         end
     end
 
@@ -282,41 +249,69 @@ function ConfigAddon._register(MoonLib)
         self._suppressSave = true
         for path, element in pairs(self._bindings) do
             local v = self:Get(path)
-            if v ~= nil and element.Set then
-                pcall(function() element:Set(v) end)
-            end
+            if v ~= nil and element.Set then pcall(function() element:Set(v) end) end
         end
         self._suppressSave = false
         for _, cb in ipairs(self._autoLoadCallbacks) do pcall(cb, self._data) end
     end
 
     function Config:OnAutoLoad(cb) table.insert(self._autoLoadCallbacks, cb) end
-
-    function Config:LoadAndApply()
-        self:Load()
-        self:ApplyAll()
-    end
+    function Config:LoadAndApply() self:Load(); self:ApplyAll() end
 
     function Config:SetupSettingsUI(Window)
         Window:AddSettingsSection("Config", 100)
 
-        local autoSaveToggle = Window:AddSettingsToggle("Auto-Save", self._autoSave, 101, function(v)
+        Window:AddSettingsToggle("Auto-Save", self._autoSave, 101, function(v)
             self:SetAutoSave(v)
-            self:_refreshManagerVisibility()
+            self:_animateManager()
         end)
 
         local managerFrame = Window:AddSettingsContainer(102)
         managerFrame.Visible = not self._autoSave
+        managerFrame.Size = UDim2.new(1, 0, 0, self._autoSave and 0 or 0)
         self._managerFrame = managerFrame
 
-        create_manager_ui(self, managerFrame, Window)
+        self:_buildManagerUI(managerFrame)
 
-        function self:_refreshManagerVisibility()
-            if self._managerFrame then self._managerFrame.Visible = not self._autoSave end
+        function self:_animateManager()
+            if not self._managerFrame then return end
+            if not self._autoSave then
+                self._managerFrame.Visible = true
+                self._managerFrame.BackgroundTransparency = 1
+                for _, c in ipairs(self._managerFrame:GetChildren()) do
+                    if c:IsA("GuiObject") then c.BackgroundTransparency = 1 end
+                    if c:IsA("TextLabel") or c:IsA("TextButton") or c:IsA("TextBox") then
+                        c.TextTransparency = 1
+                    end
+                end
+                task.wait()
+                TweenService:Create(self._managerFrame, TweenInfo.new(0.25), {BackgroundTransparency = 0}):Play()
+                for _, c in ipairs(self._managerFrame:GetChildren()) do
+                    if c:IsA("GuiObject") and c.BackgroundColor3 ~= Color3.new(0,0,0) then
+                        pcall(function() TweenService:Create(c, TweenInfo.new(0.25), {BackgroundTransparency = 0}):Play() end)
+                    end
+                    if c:IsA("TextLabel") or c:IsA("TextButton") or c:IsA("TextBox") then
+                        pcall(function() TweenService:Create(c, TweenInfo.new(0.25), {TextTransparency = 0}):Play() end)
+                    end
+                end
+            else
+                TweenService:Create(self._managerFrame, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+                for _, c in ipairs(self._managerFrame:GetChildren()) do
+                    if c:IsA("GuiObject") then
+                        pcall(function() TweenService:Create(c, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play() end)
+                    end
+                    if c:IsA("TextLabel") or c:IsA("TextButton") or c:IsA("TextBox") then
+                        pcall(function() TweenService:Create(c, TweenInfo.new(0.2), {TextTransparency = 1}):Play() end)
+                    end
+                end
+                task.delay(0.22, function()
+                    if self._autoSave and self._managerFrame then self._managerFrame.Visible = false end
+                end)
+            end
         end
     end
 
-    function create_manager_ui(configAddon, container, Window)
+    function Config:_buildManagerUI(container)
         local theme = MoonLib._theme
 
         local currentLabel = Instance.new("TextLabel", container)
@@ -327,19 +322,11 @@ function ConfigAddon._register(MoonLib)
         currentLabel.TextColor3 = theme.textDim
         currentLabel.TextXAlignment = Enum.TextXAlignment.Left
         currentLabel.LayoutOrder = 0
-
-        local function refreshCurrent()
-            currentLabel.Text = "Current: " .. (configAddon:GetCurrentConfig() or "none")
-        end
+        local function refreshCurrent() currentLabel.Text = "Current: " .. (self:GetCurrentConfig() or "none") end
         refreshCurrent()
 
-        local dropRow = Instance.new("Frame", container)
-        dropRow.Size = UDim2.new(1, 0, 0, 24)
-        dropRow.BackgroundTransparency = 1
-        dropRow.LayoutOrder = 1
-
-        local dropBtn = Instance.new("TextButton", dropRow)
-        dropBtn.Size = UDim2.new(1, 0, 1, 0)
+        local dropBtn = Instance.new("TextButton", container)
+        dropBtn.Size = UDim2.new(1, 0, 0, 24)
         dropBtn.BackgroundColor3 = theme.bgTertiary
         dropBtn.Font = Enum.Font.Gotham
         dropBtn.TextSize = 11
@@ -347,6 +334,7 @@ function ConfigAddon._register(MoonLib)
         dropBtn.Text = "Select config...  ▼"
         dropBtn.AutoButtonColor = false
         dropBtn.BorderSizePixel = 0
+        dropBtn.LayoutOrder = 1
         Instance.new("UICorner", dropBtn).CornerRadius = UDim.new(0, 4)
 
         local dropList = Instance.new("Frame", dropBtn)
@@ -356,7 +344,7 @@ function ConfigAddon._register(MoonLib)
         dropList.BorderSizePixel = 0
         dropList.ClipsDescendants = true
         dropList.Visible = false
-        dropList.ZIndex = 20
+        dropList.ZIndex = 50
         Instance.new("UICorner", dropList).CornerRadius = UDim.new(0, 4)
         local ds = Instance.new("UIStroke", dropList); ds.Color = theme.accent; ds.Thickness = 1
         Instance.new("UIListLayout", dropList).SortOrder = Enum.SortOrder.LayoutOrder
@@ -366,9 +354,9 @@ function ConfigAddon._register(MoonLib)
 
         local function rebuildList()
             for _, c in ipairs(dropList:GetChildren()) do
-                if c:IsA("TextButton") then c:Destroy() end
+                if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end
             end
-            local list = configAddon:ListConfigs()
+            local list = self:ListConfigs()
             if #list == 0 then
                 local empty = Instance.new("TextLabel", dropList)
                 empty.Size = UDim2.new(1, 0, 0, 20)
@@ -378,8 +366,8 @@ function ConfigAddon._register(MoonLib)
                 empty.TextSize = 10
                 empty.TextColor3 = theme.textDim
                 empty.Text = "No configs"
-                empty.ZIndex = 21
-                return 0
+                empty.ZIndex = 51
+                return 1
             end
             for idx, name in ipairs(list) do
                 local ib = Instance.new("TextButton", dropList)
@@ -392,7 +380,7 @@ function ConfigAddon._register(MoonLib)
                 ib.AutoButtonColor = false
                 ib.BorderSizePixel = 0
                 ib.LayoutOrder = idx
-                ib.ZIndex = 21
+                ib.ZIndex = 51
                 ib.MouseButton1Click:Connect(function()
                     selected = name
                     dropBtn.Text = name .. "  ▼"
@@ -406,179 +394,99 @@ function ConfigAddon._register(MoonLib)
         dropBtn.MouseButton1Click:Connect(function()
             isOpen = not isOpen
             local count = rebuildList()
-            if count == 0 then count = 1 end
             dropList.Size = UDim2.new(1, 0, 0, isOpen and (count * 21) or 0)
             dropList.Visible = isOpen
         end)
 
-        local btnGrid = Instance.new("Frame", container)
-        btnGrid.Size = UDim2.new(1, 0, 0, 26)
-        btnGrid.BackgroundTransparency = 1
-        btnGrid.LayoutOrder = 2
-
-        local function makeSmallBtn(text, color, xScale, xOffset)
-            local b = Instance.new("TextButton", btnGrid)
-            b.Size = UDim2.new(xScale, xOffset, 1, 0)
-            b.BackgroundColor3 = color
+        local function makeRowBtn(text, layoutOrder)
+            local b = Instance.new("TextButton", container)
+            b.Size = UDim2.new(1, 0, 0, 26)
+            b.BackgroundColor3 = theme.bgTertiary
             b.Font = Enum.Font.GothamBold
-            b.TextSize = 10
+            b.TextSize = 11
             b.TextColor3 = theme.text
             b.Text = text
             b.AutoButtonColor = false
             b.BorderSizePixel = 0
+            b.LayoutOrder = layoutOrder
             Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+            b.MouseEnter:Connect(function() TweenService:Create(b, TweenInfo.new(0.15), {BackgroundColor3 = theme.bgSection}):Play() end)
+            b.MouseLeave:Connect(function() TweenService:Create(b, TweenInfo.new(0.15), {BackgroundColor3 = theme.bgTertiary}):Play() end)
             return b
         end
 
-        local loadBtn = makeSmallBtn("Load", theme.bgTertiary, 0.5, -2)
-        loadBtn.Position = UDim2.new(0, 0, 0, 0)
-        local saveBtn = makeSmallBtn("Save", theme.bgTertiary, 0.5, -2)
-        saveBtn.Position = UDim2.new(0.5, 2, 0, 0)
+        local loadBtn = makeRowBtn("Load selected", 2)
+        local saveBtn = makeRowBtn("Save to selected", 3)
+        local newBtn = makeRowBtn("Create new", 4)
+        local delBtn = makeRowBtn("Delete selected", 5)
+        local setAlBtn = makeRowBtn("Set as Auto-Load", 6)
+        local clearAlBtn = makeRowBtn("Clear Auto-Load", 7)
 
-        local btnGrid2 = Instance.new("Frame", container)
-        btnGrid2.Size = UDim2.new(1, 0, 0, 26)
-        btnGrid2.BackgroundTransparency = 1
-        btnGrid2.LayoutOrder = 3
-
-        local function makeSmallBtn2(text, color, xScale, xOffset)
-            local b = Instance.new("TextButton", btnGrid2)
-            b.Size = UDim2.new(xScale, xOffset, 1, 0)
-            b.BackgroundColor3 = color
-            b.Font = Enum.Font.GothamBold
-            b.TextSize = 10
-            b.TextColor3 = theme.text
-            b.Text = text
-            b.AutoButtonColor = false
-            b.BorderSizePixel = 0
-            Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-            return b
-        end
-
-        local newBtn = makeSmallBtn2("New", theme.accentDim, 0.5, -2)
-        newBtn.Position = UDim2.new(0, 0, 0, 0)
-        local delBtn = makeSmallBtn2("Delete", Color3.fromRGB(100, 30, 30), 0.5, -2)
-        delBtn.Position = UDim2.new(0.5, 2, 0, 0)
-
-        local alRow = Instance.new("Frame", container)
-        alRow.Size = UDim2.new(1, 0, 0, 24)
-        alRow.BackgroundTransparency = 1
-        alRow.LayoutOrder = 4
-
-        local alLbl = Instance.new("TextLabel", alRow)
-        alLbl.Size = UDim2.new(0.5, 0, 1, 0)
-        alLbl.BackgroundTransparency = 1
-        alLbl.Font = Enum.Font.Gotham
-        alLbl.TextSize = 11
-        alLbl.TextColor3 = theme.text
-        alLbl.TextXAlignment = Enum.TextXAlignment.Left
-        alLbl.Text = "Auto-Load:"
-
-        local alValue = Instance.new("TextLabel", alRow)
-        alValue.Size = UDim2.new(0.5, -30, 1, 0)
-        alValue.Position = UDim2.new(0.5, 0, 0, 0)
-        alValue.BackgroundTransparency = 1
-        alValue.Font = Enum.Font.GothamBold
-        alValue.TextSize = 11
-        alValue.TextColor3 = theme.accent
-        alValue.TextXAlignment = Enum.TextXAlignment.Right
-        alValue.Text = configAddon:GetAutoLoad() or "none"
-
-        local alSetBtn = Instance.new("TextButton", alRow)
-        alSetBtn.Size = UDim2.new(0, 24, 0, 20)
-        alSetBtn.Position = UDim2.new(1, -26, 0.5, -10)
-        alSetBtn.BackgroundColor3 = theme.bgTertiary
-        alSetBtn.Font = Enum.Font.GothamBold
-        alSetBtn.TextSize = 10
-        alSetBtn.TextColor3 = theme.text
-        alSetBtn.Text = "×"
-        alSetBtn.AutoButtonColor = false
-        alSetBtn.BorderSizePixel = 0
-        Instance.new("UICorner", alSetBtn).CornerRadius = UDim.new(0, 4)
-
-        alSetBtn.MouseButton1Click:Connect(function()
-            configAddon:SetAutoLoad(nil)
-            alValue.Text = "none"
-        end)
-
-        local btnGrid3 = Instance.new("Frame", container)
-        btnGrid3.Size = UDim2.new(1, 0, 0, 26)
-        btnGrid3.BackgroundTransparency = 1
-        btnGrid3.LayoutOrder = 5
-
-        local setAlBtn = Instance.new("TextButton", btnGrid3)
-        setAlBtn.Size = UDim2.new(1, 0, 1, 0)
-        setAlBtn.BackgroundColor3 = theme.bgTertiary
-        setAlBtn.Font = Enum.Font.GothamBold
-        setAlBtn.TextSize = 10
-        setAlBtn.TextColor3 = theme.text
-        setAlBtn.Text = "Set selected as Auto-Load"
-        setAlBtn.AutoButtonColor = false
-        setAlBtn.BorderSizePixel = 0
-        Instance.new("UICorner", setAlBtn).CornerRadius = UDim.new(0, 4)
-
-        setAlBtn.MouseButton1Click:Connect(function()
-            if not selected then MoonLib:Notify("Select a config first"); return end
-            configAddon:SetAutoLoad(selected)
-            alValue.Text = selected
-            MoonLib:Notify("Auto-Load: " .. selected)
-        end)
+        local alLabel = Instance.new("TextLabel", container)
+        alLabel.Size = UDim2.new(1, 0, 0, 16)
+        alLabel.BackgroundTransparency = 1
+        alLabel.Font = Enum.Font.Gotham
+        alLabel.TextSize = 11
+        alLabel.TextColor3 = theme.textDim
+        alLabel.TextXAlignment = Enum.TextXAlignment.Left
+        alLabel.LayoutOrder = 8
+        local function refreshAl() alLabel.Text = "Auto-Load: " .. (self:GetAutoLoad() or "none") end
+        refreshAl()
 
         loadBtn.MouseButton1Click:Connect(function()
             if not selected then MoonLib:Notify("Select a config first"); return end
-            if configAddon:LoadConfig(selected) then
-                MoonLib:Notify("Loaded: " .. selected)
-                refreshCurrent()
-            else
-                MoonLib:Notify("Failed to load")
-            end
+            if self:LoadConfig(selected) then
+                MoonLib:Notify("Loaded: " .. selected); refreshCurrent()
+            else MoonLib:Notify("Failed to load") end
         end)
 
         saveBtn.MouseButton1Click:Connect(function()
             if not selected then MoonLib:Notify("Select a config first"); return end
-            configAddon:SaveConfig(selected)
-            MoonLib:Notify("Saved: " .. selected)
-            refreshCurrent()
+            self:SaveConfig(selected)
+            MoonLib:Notify("Saved: " .. selected); refreshCurrent()
         end)
 
         newBtn.MouseButton1Click:Connect(function()
             MoonLib:Prompt({
-                Title = "New Config",
-                Message = "Enter name for new config:",
-                Input = true,
-                Placeholder = "config name",
+                Title = "New Config", Message = "Enter name:", Input = true, Placeholder = "config name",
                 OnConfirm = function(name)
                     if not name or name == "" then return end
-                    local ok, err = configAddon:CreateConfig(name)
+                    local ok, res = self:CreateConfig(name)
                     if ok then
-                        MoonLib:Notify("Created: " .. name)
-                        selected = name:gsub("[^%w_%-]", "_")
-                        dropBtn.Text = selected .. "  ▼"
-                        refreshCurrent()
-                    else
-                        MoonLib:Notify(err or "Failed")
-                    end
-                end
+                        MoonLib:Notify("Created: " .. res)
+                        selected = res; dropBtn.Text = res .. "  ▼"; refreshCurrent()
+                    else MoonLib:Notify(res or "Failed") end
+                end,
             })
         end)
 
         delBtn.MouseButton1Click:Connect(function()
             if not selected then MoonLib:Notify("Select a config first"); return end
             MoonLib:Prompt({
-                Title = "Delete Config",
-                Message = "Delete '" .. selected .. "'?",
-                OkText = "Delete",
+                Title = "Delete Config", Message = "Delete '" .. selected .. "'?", OkText = "Delete",
                 OnConfirm = function()
-                    configAddon:DeleteConfig(selected)
+                    self:DeleteConfig(selected)
                     MoonLib:Notify("Deleted: " .. selected)
-                    selected = nil
-                    dropBtn.Text = "Select config...  ▼"
-                    alValue.Text = configAddon:GetAutoLoad() or "none"
-                    refreshCurrent()
-                end
+                    selected = nil; dropBtn.Text = "Select config...  ▼"
+                    refreshCurrent(); refreshAl()
+                end,
             })
         end)
 
-        configAddon:OnListChanged(refreshCurrent)
+        setAlBtn.MouseButton1Click:Connect(function()
+            if not selected then MoonLib:Notify("Select a config first"); return end
+            self:SetAutoLoad(selected)
+            refreshAl()
+            MoonLib:Notify("Auto-Load: " .. selected)
+        end)
+
+        clearAlBtn.MouseButton1Click:Connect(function()
+            self:SetAutoLoad(nil)
+            refreshAl()
+            MoonLib:Notify("Auto-Load cleared")
+        end)
+
+        self:OnListChanged(function() refreshCurrent(); refreshAl() end)
     end
 
     MoonLib:RegisterAddon("Config", Config)
