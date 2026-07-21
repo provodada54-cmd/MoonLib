@@ -10,7 +10,7 @@ local camera = Workspace.CurrentCamera
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local MoonLib = {}
-MoonLib._version = "3.0.0"
+MoonLib._version = "3.1.0"
 MoonLib._addons = {}
 MoonLib._windows = {}
 MoonLib._connections = {}
@@ -27,7 +27,7 @@ MoonLib._theme = {
     textDim = Color3.fromRGB(130, 130, 145),
     textFaded = Color3.fromRGB(90, 90, 105),
     border = Color3.fromRGB(40, 40, 50),
-    borderGlow = Color3.fromRGB(180, 60, 100),
+    borderGlow = Color3.fromRGB(120, 40, 70),
     toggle_on = Color3.fromRGB(230, 40, 75),
     toggle_off = Color3.fromRGB(50, 50, 60),
     slider_bg = Color3.fromRGB(45, 45, 55),
@@ -38,12 +38,11 @@ MoonLib._theme = {
 local TWEEN = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local MINI_SIZE = isMobile and 44 or 52
 local BASE_SCREEN = 1080
--- Drop shadow текстура (стандартная в Roblox UI библиотеках)
-local SHADOW_IMAGE = "rbxassetid://6015897843"
-local GLOW_IMAGE = "rbxassetid://4996891970"
+-- Классический drop shadow (симметричный размытый круг)
+local SHADOW_IMAGE = "rbxassetid://1316045217"
 
-local function tween(obj, props, dur, style)
-    return TweenService:Create(obj, dur and TweenInfo.new(dur, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out) or TWEEN, props):Play()
+local function tween(obj, props, dur, style, dir)
+    return TweenService:Create(obj, dur and TweenInfo.new(dur, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out) or TWEEN, props):Play()
 end
 
 local function create(class, props, children)
@@ -65,12 +64,12 @@ local function padding(parent, t, b, l, r)
     })
 end
 
--- Настоящее drop-shadow как в Fluent/Rayfield
+-- Симметричная тень-аура (как в реальных UI библиотеках)
 local function addShadow(parent, color, size, transparency)
-    color = color or Color3.new(0, 0, 0)
-    size = size or 40
+    color = color or MoonLib._theme.accent
+    size = size or 60
     transparency = transparency or 0.5
-    local shadow = create("ImageLabel", {
+    return create("ImageLabel", {
         Name = "_Shadow",
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundTransparency = 1,
@@ -79,34 +78,10 @@ local function addShadow(parent, color, size, transparency)
         Image = SHADOW_IMAGE,
         ImageColor3 = color,
         ImageTransparency = transparency,
-        ScaleType = Enum.ScaleType.Slice,
-        SliceCenter = Rect.new(49, 49, 450, 450),
+        ScaleType = Enum.ScaleType.Fit,
         ZIndex = 0,
         Parent = parent,
     })
-    return shadow
-end
-
--- Мягкое неоновое свечение (как в Fluent library)
-local function addNeonGlow(parent, color, size, transparency)
-    color = color or MoonLib._theme.accent
-    size = size or 60
-    transparency = transparency or 0.4
-    local glow = create("ImageLabel", {
-        Name = "_NeonGlow",
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        Size = UDim2.new(1, size, 1, size),
-        Image = GLOW_IMAGE,
-        ImageColor3 = color,
-        ImageTransparency = transparency,
-        ScaleType = Enum.ScaleType.Slice,
-        SliceCenter = Rect.new(20, 20, 480, 480),
-        ZIndex = 0,
-        Parent = parent,
-    })
-    return glow
 end
 
 local function getScale()
@@ -146,8 +121,7 @@ function MoonLib:Prompt(opts)
     local overlay = create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0, Parent = gui})
     local frame = create("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 320, 0, opts.Input and 160 or 130), BackgroundColor3 = theme.bg, BorderSizePixel = 0, Parent = overlay})
     corner(frame, 10); stroke(frame, theme.accent, 1)
-    addShadow(frame, Color3.new(0, 0, 0), 60, 0.4)
-    addNeonGlow(frame, theme.accent, 40, 0.6)
+    addShadow(frame, theme.accent, 80, 0.55)
     create("TextLabel", {Size = UDim2.new(1, -20, 0, 26), Position = UDim2.new(0, 10, 0, 10), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = theme.accent, TextXAlignment = Enum.TextXAlignment.Left, Text = opts.Title or "Prompt", Parent = frame})
     create("TextLabel", {Size = UDim2.new(1, -20, 0, 30), Position = UDim2.new(0, 10, 0, 36), BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = theme.text, TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = true, Text = opts.Message or "", Parent = frame})
 
@@ -193,8 +167,7 @@ function MoonLib:CreateSubPopup(opts)
     })
     corner(frame, 10)
     stroke(frame, theme.accent, 1)
-    addShadow(frame, Color3.new(0, 0, 0), 70, 0.35)
-    addNeonGlow(frame, theme.accent, 50, 0.55)
+    addShadow(frame, theme.accent, 90, 0.5)
 
     local titleBar = create("Frame", {Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = theme.bgSecondary, BorderSizePixel = 0, Parent = frame})
     corner(titleBar, 10)
@@ -317,21 +290,19 @@ function MoonLib:CreateSubPopup(opts)
     return API
 end
 
--- DROPDOWN — плавный, соединённый с кнопкой (стиль Fluent/Rayfield)
+-- DROPDOWN — ЕДИНЫЙ контейнер который расширяется вниз (как в Fluent Library)
 function MoonLib:_makeDropdown(parentBody, opts)
     opts = opts or {}
     local theme = self._theme
     local items = opts.Items or {}
     local D = {Value = opts.Default or (items[1] or ""), _callbacks = {}, _open = false, _items = items}
 
-    local ITEM_H = 22
+    local ITEM_H = 26
+    local BTN_H = 28
     local LABEL_H = 16
-    local BTN_H = 24
-    local BTN_Y = 20
-    -- список начинается сразу под кнопкой (без разрыва)
-    local LIST_Y = BTN_Y + BTN_H
-    local ROW_CLOSED_H = LIST_Y + 4
+    local ROW_CLOSED_H = LABEL_H + BTN_H + 4
 
+    -- Внешняя строка (row) — держит label и dropdown
     local row = create("Frame", {
         Size = UDim2.new(1, 0, 0, ROW_CLOSED_H),
         BackgroundTransparency = 1,
@@ -339,6 +310,7 @@ function MoonLib:_makeDropdown(parentBody, opts)
         Parent = parentBody,
     })
 
+    -- Label над dropdown
     create("TextLabel", {
         Size = UDim2.new(1, 0, 0, LABEL_H),
         BackgroundTransparency = 1,
@@ -350,24 +322,34 @@ function MoonLib:_makeDropdown(parentBody, opts)
         Parent = row,
     })
 
-    -- Кнопка dropdown — соединяется с списком по нижнему краю
-    local dropBtn = create("TextButton", {
+    -- ЕДИНЫЙ контейнер (заменяет и кнопку и список сразу)
+    -- Это тот самый "unified frame" из Fluent Library
+    local container = create("Frame", {
         Size = UDim2.new(1, 0, 0, BTN_H),
-        Position = UDim2.new(0, 0, 0, BTN_Y),
+        Position = UDim2.new(0, 0, 0, LABEL_H + 4),
         BackgroundColor3 = theme.bgTertiary,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        Parent = row,
+    })
+    corner(container, 6)
+    local containerStroke = stroke(container, theme.border, 1)
+
+    -- Header (видимая часть кнопки) — всегда сверху, фиксированная высота
+    local header = create("TextButton", {
+        Size = UDim2.new(1, 0, 0, BTN_H),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
         Font = Enum.Font.Gotham,
-        TextSize = 11,
+        TextSize = 12,
         TextColor3 = theme.text,
         Text = tostring(D.Value),
         TextXAlignment = Enum.TextXAlignment.Left,
         AutoButtonColor = false,
         BorderSizePixel = 0,
-        ZIndex = 5,
-        Parent = row,
+        Parent = container,
     })
-    corner(dropBtn, 6)
-    local btnStroke = stroke(dropBtn, theme.border, 1)
-    padding(dropBtn, 0, 0, 10, 30)
+    padding(header, 0, 0, 10, 30)
 
     local arrow = create("TextLabel", {
         Size = UDim2.new(0, 14, 0, 14),
@@ -377,35 +359,37 @@ function MoonLib:_makeDropdown(parentBody, opts)
         TextSize = 10,
         TextColor3 = theme.accent,
         Text = "▼",
-        ZIndex = 6,
-        Parent = dropBtn,
+        Parent = header,
     })
 
-    -- КОНТЕЙНЕР списка — соединён с кнопкой (Position = сразу под кнопкой)
-    local dropList = create("Frame", {
-        Size = UDim2.new(1, 0, 0, 0),
-        Position = UDim2.new(0, 0, 0, LIST_Y),
-        BackgroundColor3 = theme.bgTertiary,
+    -- Разделитель между header и списком (появляется только когда открыт)
+    local separator = create("Frame", {
+        Size = UDim2.new(1, -20, 0, 1),
+        Position = UDim2.new(0, 10, 0, BTN_H),
+        BackgroundColor3 = theme.accent,
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        ClipsDescendants = true,
-        Visible = false,
-        ZIndex = 3,
-        Parent = row,
+        Parent = container,
     })
-    corner(dropList, 6)
-    local listStroke = stroke(dropList, theme.border, 1)
 
-    -- Внутренний UIListLayout прикладывает пункты сверху вниз
+    -- Список пунктов — внутри контейнера, ниже header
+    local itemList = create("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        Position = UDim2.new(0, 0, 0, BTN_H + 1),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Parent = container,
+    })
     create("UIListLayout", {
         SortOrder = Enum.SortOrder.LayoutOrder,
         Padding = UDim.new(0, 0),
-        Parent = dropList
+        Parent = itemList
     })
 
-    D._dropList = dropList
+    D._container = container
 
     local function rebuild()
-        for _, c in ipairs(dropList:GetChildren()) do
+        for _, c in ipairs(itemList:GetChildren()) do
             if c:IsA("TextButton") then c:Destroy() end
         end
         for idx, it in ipairs(D._items) do
@@ -413,87 +397,75 @@ function MoonLib:_makeDropdown(parentBody, opts)
                 Size = UDim2.new(1, 0, 0, ITEM_H),
                 BackgroundColor3 = theme.bgTertiary,
                 Font = Enum.Font.Gotham,
-                TextSize = 11,
-                TextColor3 = theme.text,
+                TextSize = 12,
+                TextColor3 = theme.textDim,
                 Text = tostring(it),
                 TextXAlignment = Enum.TextXAlignment.Left,
                 AutoButtonColor = false,
                 BorderSizePixel = 0,
                 LayoutOrder = idx,
-                ZIndex = 4,
-                Parent = dropList,
+                Parent = itemList,
             })
             padding(ib, 0, 0, 10, 0)
 
-            -- разделительная линия
-            if idx > 1 then
-                create("Frame", {
-                    Size = UDim2.new(1, -12, 0, 1),
-                    Position = UDim2.new(0, 6, 0, 0),
-                    BackgroundColor3 = theme.border,
-                    BackgroundTransparency = 0.5,
-                    BorderSizePixel = 0,
-                    ZIndex = 5,
-                    Parent = ib,
-                })
-            end
-
             ib.MouseEnter:Connect(function()
-                tween(ib, {BackgroundColor3 = theme.bg, TextColor3 = theme.accent}, 0.1)
+                tween(ib, {BackgroundColor3 = theme.bg, TextColor3 = theme.text}, 0.12)
             end)
             ib.MouseLeave:Connect(function()
-                tween(ib, {BackgroundColor3 = theme.bgTertiary, TextColor3 = theme.text}, 0.1)
+                tween(ib, {BackgroundColor3 = theme.bgTertiary, TextColor3 = theme.textDim}, 0.12)
             end)
             ib.MouseButton1Click:Connect(function()
                 D.Value = it
-                dropBtn.Text = tostring(it)
+                header.Text = tostring(it)
                 D:Close()
                 for _, cb in ipairs(D._callbacks) do pcall(cb, it) end
                 if opts.Callback then pcall(opts.Callback, it) end
             end)
         end
+        itemList.Size = UDim2.new(1, 0, 0, #D._items * ITEM_H)
     end
     rebuild()
 
+    -- Единая анимация — только Size контейнера
+    local OPEN_TWEEN = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+    local CLOSE_TWEEN = TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+
     function D:Open()
+        if self._open then return end
         self._open = true
-        local h = #self._items * ITEM_H
-        dropList.Visible = true
-        -- анимируем размер списка и высоту row синхронно
-        tween(dropList, {Size = UDim2.new(1, 0, 0, h)}, 0.22, Enum.EasingStyle.Sine)
-        tween(row, {Size = UDim2.new(1, 0, 0, ROW_CLOSED_H + h + 2)}, 0.22, Enum.EasingStyle.Sine)
-        tween(arrow, {Rotation = 180}, 0.22, Enum.EasingStyle.Sine)
-        tween(btnStroke, {Color = theme.accent, Transparency = 0}, 0.15)
-        tween(listStroke, {Color = theme.accent, Transparency = 0}, 0.15)
+        local totalH = BTN_H + 1 + (#self._items * ITEM_H) + 2
+        TweenService:Create(container, OPEN_TWEEN, {Size = UDim2.new(1, 0, 0, totalH)}):Play()
+        TweenService:Create(row, OPEN_TWEEN, {Size = UDim2.new(1, 0, 0, LABEL_H + 4 + totalH)}):Play()
+        TweenService:Create(arrow, OPEN_TWEEN, {Rotation = 180}):Play()
+        TweenService:Create(separator, OPEN_TWEEN, {BackgroundTransparency = 0.6}):Play()
+        TweenService:Create(containerStroke, OPEN_TWEEN, {Color = theme.accent}):Play()
     end
 
     function D:Close()
+        if not self._open then return end
         self._open = false
-        tween(dropList, {Size = UDim2.new(1, 0, 0, 0)}, 0.18, Enum.EasingStyle.Sine)
-        tween(row, {Size = UDim2.new(1, 0, 0, ROW_CLOSED_H)}, 0.18, Enum.EasingStyle.Sine)
-        tween(arrow, {Rotation = 0}, 0.18, Enum.EasingStyle.Sine)
-        tween(btnStroke, {Color = theme.border, Transparency = 0}, 0.15)
-        tween(listStroke, {Color = theme.border, Transparency = 0}, 0.15)
-        task.delay(0.2, function()
-            if not self._open then dropList.Visible = false end
-        end)
+        TweenService:Create(container, CLOSE_TWEEN, {Size = UDim2.new(1, 0, 0, BTN_H)}):Play()
+        TweenService:Create(row, CLOSE_TWEEN, {Size = UDim2.new(1, 0, 0, ROW_CLOSED_H)}):Play()
+        TweenService:Create(arrow, CLOSE_TWEEN, {Rotation = 0}):Play()
+        TweenService:Create(separator, CLOSE_TWEEN, {BackgroundTransparency = 1}):Play()
+        TweenService:Create(containerStroke, CLOSE_TWEEN, {Color = theme.border}):Play()
     end
 
-    dropBtn.MouseButton1Click:Connect(function()
+    header.MouseButton1Click:Connect(function()
         if D._open then D:Close() else D:Open() end
     end)
 
     function D:Set(v)
         self.Value = v
-        dropBtn.Text = tostring(v)
+        header.Text = tostring(v)
     end
     function D:SetItems(newItems)
         self._items = newItems or {}
         rebuild()
         if self._open then
-            local h = #self._items * ITEM_H
-            tween(dropList, {Size = UDim2.new(1, 0, 0, h)}, 0.15, Enum.EasingStyle.Sine)
-            tween(row, {Size = UDim2.new(1, 0, 0, ROW_CLOSED_H + h + 2)}, 0.15, Enum.EasingStyle.Sine)
+            local totalH = BTN_H + 1 + (#self._items * ITEM_H) + 2
+            TweenService:Create(container, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {Size = UDim2.new(1, 0, 0, totalH)}):Play()
+            TweenService:Create(row, TweenInfo.new(0.15, Enum.EasingStyle.Quart), {Size = UDim2.new(1, 0, 0, LABEL_H + 4 + totalH)}):Play()
         end
     end
     function D:OnChanged(cb) table.insert(self._callbacks, cb) end
@@ -532,7 +504,7 @@ function MoonLib:CreateWindow(options)
     stroke(miniIcon, Color3.new(0, 0, 0), 2)
     padding(miniIcon, 4, 4, 4, 4)
 
-    -- MAIN FRAME с настоящим drop-shadow и neon glow
+    -- MAIN FRAME
     local mainFrame = create("Frame", {
         Name = "MainFrame",
         AnchorPoint = Vector2.new(0.5, 0.5),
@@ -546,11 +518,37 @@ function MoonLib:CreateWindow(options)
     corner(mainFrame, 10)
     stroke(mainFrame, self._theme.borderGlow, 1)
 
-    -- ДВОЙНОЕ свечение — тень + неон
-    local shadowLayer = addShadow(mainFrame, Color3.new(0, 0, 0), 80, 0.4)
-    local neonLayer = addNeonGlow(mainFrame, self._theme.accent, 60, 0.5)
+    -- Симметричная аура — размытый круг вокруг всего окна
+    local shadowLayer = addShadow(mainFrame, self._theme.accent, 100, 0.55)
 
-    -- контейнер для основного контента с ClipsDescendants (для секций и вкладок)
+    -- Второй слой ближе к окну для более яркой кромки
+    local innerShadow = create("ImageLabel", {
+        Name = "_InnerShadow",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(1, 40, 1, 40),
+        Image = SHADOW_IMAGE,
+        ImageColor3 = self._theme.accentGlow,
+        ImageTransparency = 0.45,
+        ScaleType = Enum.ScaleType.Fit,
+        ZIndex = 0,
+        Parent = mainFrame,
+    })
+
+    -- Пульсация ауры
+    task.spawn(function()
+        while shadowLayer and shadowLayer.Parent do
+            tween(shadowLayer, {ImageTransparency = 0.45}, 2.5)
+            tween(innerShadow, {ImageTransparency = 0.35}, 2.5)
+            task.wait(2.5)
+            tween(shadowLayer, {ImageTransparency = 0.6}, 2.5)
+            tween(innerShadow, {ImageTransparency = 0.5}, 2.5)
+            task.wait(2.5)
+        end
+    end)
+
+    -- Внутренний контейнер с обрезкой контента
     local innerClip = create("Frame", {
         Name = "InnerClip",
         Size = UDim2.new(1, 0, 1, 0),
@@ -560,16 +558,6 @@ function MoonLib:CreateWindow(options)
         Parent = mainFrame,
     })
     corner(innerClip, 10)
-
-    -- Пульсация ауры
-    task.spawn(function()
-        while neonLayer and neonLayer.Parent do
-            tween(neonLayer, {ImageTransparency = 0.35}, 2.5)
-            task.wait(2.5)
-            tween(neonLayer, {ImageTransparency = 0.55}, 2.5)
-            task.wait(2.5)
-        end
-    end)
 
     local titleBar = create("Frame", {Name = "TitleBar", Size = UDim2.new(1, 0, 0, 42), BackgroundColor3 = self._theme.bgSecondary, BorderSizePixel = 0, Parent = innerClip})
     corner(titleBar, 10)
@@ -612,9 +600,7 @@ function MoonLib:CreateWindow(options)
             if t.button then
                 tween(t.button, {BackgroundTransparency = 1, TextColor3 = MoonLib._theme.textDim})
                 local ic = t.button:FindFirstChildOfClass("ImageLabel")
-                if ic and ic.Name ~= "_Shadow" and ic.Name ~= "_NeonGlow" then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
-                local g = t.button:FindFirstChild("_NeonGlow")
-                if g then g.Visible = false end
+                if ic and ic.Name ~= "_Shadow" and ic.Name ~= "_InnerShadow" then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
             end
         end
         Window.activeTab = nil
@@ -786,8 +772,6 @@ function MoonLib:CreateWindow(options)
         local w = TextService:GetTextSize(btnText, 12, Enum.Font.GothamBold, Vector2.new(1000, 100)).X + (tabIcon and 24 or 20)
         local tabBtn = create("TextButton", {Size = UDim2.new(0, w, 0, 26), BackgroundColor3 = MoonLib._theme.bgTertiary, BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = MoonLib._theme.textDim, Text = btnText, AutoButtonColor = false, BorderSizePixel = 0, ClipsDescendants = false, Parent = tabScroll})
         corner(tabBtn, 6)
-        local tabGlow = addNeonGlow(tabBtn, MoonLib._theme.accent, 20, 0.4)
-        tabGlow.Visible = false
         if tabIcon then
             create("ImageLabel", {Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 8, 0.5, -7), BackgroundTransparency = 1, Image = tabIcon, ImageColor3 = MoonLib._theme.textDim, Parent = tabBtn})
         end
@@ -1025,16 +1009,13 @@ function MoonLib:CreateWindow(options)
                 if t.button then
                     tween(t.button, {BackgroundTransparency = 1, TextColor3 = MoonLib._theme.textDim})
                     local ic = t.button:FindFirstChildOfClass("ImageLabel")
-                    if ic and ic.Name ~= "_Shadow" and ic.Name ~= "_NeonGlow" then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
-                    local g = t.button:FindFirstChild("_NeonGlow")
-                    if g then g.Visible = false end
+                    if ic and ic.Name ~= "_Shadow" and ic.Name ~= "_InnerShadow" then tween(ic, {ImageColor3 = MoonLib._theme.textDim}) end
                 end
             end
             tabPage.Visible = true
             tween(tabBtn, {BackgroundTransparency = 0, BackgroundColor3 = MoonLib._theme.accentDim, TextColor3 = MoonLib._theme.text})
             local ic = tabBtn:FindFirstChildOfClass("ImageLabel")
-            if ic and ic.Name ~= "_Shadow" and ic.Name ~= "_NeonGlow" then tween(ic, {ImageColor3 = MoonLib._theme.accent}) end
-            if tabGlow then tabGlow.Visible = true end
+            if ic and ic.Name ~= "_Shadow" and ic.Name ~= "_InnerShadow" then tween(ic, {ImageColor3 = MoonLib._theme.accent}) end
             Window.activeTab = Tab
             if settingsOpen then
                 settingsOpen = false
